@@ -1,0 +1,337 @@
+:root {
+  --bg: #F3F6F5;
+  --text: #10282C;
+  --muted: #3D5A60;
+  --hero: #025E6C;
+  --hero-text: #F7FFFD;
+  --note: #E5F6F1;
+  --note-text: #025E6C;
+  --accent: #025E6C;
+  --pill: #D4F3EA;
+  --line: #DCE8E6;
+  --nav: rgba(255, 255, 255, 0.94);
+  --hover: #E7F2F0;
+  --shadow: 0 12px 28px rgba(16, 40, 44, 0.08);
+  --header-h: 60px;
+  color-scheme: light;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0A171A;
+    --text: #E7F4F2;
+    --muted: #B7D0D2;
+    --hero: #0B7384;
+    --hero-text: #F7FFFD;
+    --note: #123E3C;
+    --note-text: #D5F6EE;
+    --accent: #8FE3D4;
+    --pill: #143E3C;
+    --line: #24464C;
+    --nav: rgba(14, 28, 32, 0.94);
+    --hover: #173238;
+    --shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+    color-scheme: dark;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: inherit;
+}
+
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 10px;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  height: var(--header-h);
+  padding: 0 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: -0.03em;
+}
+
+.brand img {
+  width: 36px;
+  height: 36px;
+}
+
+.shell {
+  min-height: calc(100dvh - var(--header-h));
+}
+
+.nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: space-between;
+  gap: 2px;
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+  background: var(--nav);
+  border-top: 1px solid var(--line);
+  backdrop-filter: blur(16px);
+}
+
+.nav a {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 2px 0 0;
+  border-radius: 12px;
+  text-decoration: none;
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+.nav .ico {
+  width: 48px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+}
+
+.nav svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nav .lbl {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav a[aria-current="page"],
+body:has(#inicio:target) .nav a[href="#inicio"],
+body:not(:has(.view:target)) .nav a[href="#inicio"],
+body:has(#tarjeta:target) .nav a[href="#tarjeta"],
+body:has(#prestamos:target) .nav a[href="#prestamos"],
+body:has(#servicios:target) .nav a[href="#servicios"],
+body:has(#suscripciones:target) .nav a[href="#suscripciones"] {
+  color: var(--accent);
+}
+
+.nav a[aria-current="page"] .ico,
+body:has(#inicio:target) .nav a[href="#inicio"] .ico,
+body:not(:has(.view:target)) .nav a[href="#inicio"] .ico,
+body:has(#tarjeta:target) .nav a[href="#tarjeta"] .ico,
+body:has(#prestamos:target) .nav a[href="#prestamos"] .ico,
+body:has(#servicios:target) .nav a[href="#servicios"] .ico,
+body:has(#suscripciones:target) .nav a[href="#suscripciones"] .ico {
+  background: var(--pill);
+}
+
+main {
+  min-width: 0;
+  padding: 20px 16px calc(92px + env(safe-area-inset-bottom));
+}
+
+.content {
+  max-width: 40rem;
+}
+
+.view {
+  display: none;
+  scroll-margin-top: calc(var(--header-h) + 12px);
+}
+
+.view:target {
+  display: block;
+}
+
+body:not(:has(.view:target)) #inicio {
+  display: block;
+}
+
+.page-head h1 {
+  margin: 0;
+  font-size: 1.85rem;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+}
+
+.lead {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.hero {
+  margin-top: 18px;
+  padding: 22px 20px;
+  border-radius: 20px;
+  background: var(--hero);
+  color: var(--hero-text);
+  box-shadow: var(--shadow);
+}
+
+.hero-display {
+  margin: 0;
+  font-size: clamp(1.7rem, 7vw, 2.15rem);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.15;
+}
+
+.note {
+  margin: 12px 0 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--note);
+  color: var(--note-text);
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+@media (min-width: 900px) {
+  .topbar {
+    padding: 0 24px;
+  }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .nav {
+    position: sticky;
+    top: var(--header-h);
+    bottom: auto;
+    left: auto;
+    right: auto;
+    height: calc(100dvh - var(--header-h));
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 4px;
+    padding: 16px 12px;
+    background: var(--bg);
+    border-top: 0;
+    border-right: 1px solid var(--line);
+    backdrop-filter: none;
+  }
+
+  .nav a {
+    flex: none;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    min-height: 48px;
+    padding: 8px 12px;
+    font-size: 0.98rem;
+    border-radius: 12px;
+  }
+
+  .nav a:hover {
+    background: var(--hover);
+  }
+
+  .nav .ico {
+    width: 28px;
+    height: 28px;
+    background: transparent;
+  }
+
+  .nav a[aria-current="page"],
+  body:has(#inicio:target) .nav a[href="#inicio"],
+  body:not(:has(.view:target)) .nav a[href="#inicio"],
+  body:has(#tarjeta:target) .nav a[href="#tarjeta"],
+  body:has(#prestamos:target) .nav a[href="#prestamos"],
+  body:has(#servicios:target) .nav a[href="#servicios"],
+  body:has(#suscripciones:target) .nav a[href="#suscripciones"] {
+    background: var(--pill);
+  }
+
+  .nav a[aria-current="page"] .ico,
+  body:has(#inicio:target) .nav a[href="#inicio"] .ico,
+  body:not(:has(.view:target)) .nav a[href="#inicio"] .ico,
+  body:has(#tarjeta:target) .nav a[href="#tarjeta"] .ico,
+  body:has(#prestamos:target) .nav a[href="#prestamos"] .ico,
+  body:has(#servicios:target) .nav a[href="#servicios"] .ico,
+  body:has(#suscripciones:target) .nav a[href="#suscripciones"] .ico {
+    background: transparent;
+  }
+
+  .nav .lbl {
+    overflow: visible;
+    text-overflow: unset;
+  }
+
+  main {
+    padding: 36px 40px 64px;
+  }
+
+  .page-head h1 {
+    font-size: 2.15rem;
+  }
+}
+
+@media (forced-colors: active) {
+  .hero,
+  .note,
+  .nav {
+    border: 1px solid CanvasText;
+  }
+}

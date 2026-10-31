@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Simpla</title>
+  <meta name="description" content="Simpla sigue tus gastos fijos: la tarjeta y sus cuotas, los préstamos, los servicios y las suscripciones.">
+  <meta name="theme-color" content="#025E6C">
+  <meta name="theme-color" content="#025E6C" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0A171A" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Simpla">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="favicon.ico" sizes="48x48">
+  <link rel="icon" href="icons/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    html { background: #F3F6F5; }
+    @media (prefers-color-scheme: dark) {
+      html { background: #0A171A; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#inicio">
+      <img src="icons/logo.png" width="36" height="36" alt="">
+      <span>Simpla</span>
+    </a>
+  </header>
+
+  <div class="shell">
+    <nav class="nav" aria-label="Secciones">
+      <a href="#inicio">
+        <span class="ico">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z"/>
+          </svg>
+        </span>
+        <span class="lbl">Inicio</span>
+      </a>
+      <a href="#tarjeta">
+        <span class="ico">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3" y="5.5" width="18" height="13" rx="2"/>
+            <path d="M3 10h18"/>
+            <path d="M7 14.5h4"/>
+          </svg>
+        </span>
+        <span class="lbl">Tarjeta</span>
+      </a>
+      <a href="#prestamos">
+        <span class="ico">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="8"/>
+            <path d="M12 8.5V12l2.6 2"/>
+          </svg>
+        </span>
+        <span class="lbl">Préstamos</span>
+      </a>
+      <a href="#servicios">
+        <span class="ico">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M13 2.5 4.5 13.5H11l-1 8 9-11H12l1-8Z"/>
+          </svg>
+        </span>
+        <span class="lbl">Servicios</span>
+      </a>
+      <a href="#suscripciones">
+        <span class="ico">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20 12a8 8 0 1 1-2.3-5.6"/>
+            <path d="M20 4.5V10H14.5"/>
+          </svg>
+        </span>
+        <span class="lbl">Suscripciones</span>
+      </a>
+    </nav>
+
+    <main>
+      <div class="content">
+        <section class="view" id="inicio">
+          <div class="page-head">
+            <h1>Inicio</h1>
+            <p class="lead">Hola, Federico</p>
+          </div>
+          <article class="hero">
+            <p class="hero-display">Próximamente</p>
+          </article>
+          <p class="note">Acá vas a ver el total de tus gastos fijos y cómo vienen los próximos meses.</p>
+        </section>
+
+        <section class="view" id="tarjeta">
+          <div class="page-head">
+            <h1>Tarjeta</h1>
+          </div>
+          <article class="hero">
+            <p class="hero-display">Próximamente</p>
+          </article>
+          <p class="note">Acá vas a ver el resumen, las cuotas y los consumos del mes.</p>
+        </section>
+
+        <section class="view" id="prestamos">
+          <div class="page-head">
+            <h1>Préstamos</h1>
+          </div>
+          <article class="hero">
+            <p class="hero-display">Próximamente</p>
+          </article>
+          <p class="note">Acá vas a ver las cuotas y lo que falta pagar.</p>
+        </section>
+
+        <section class="view" id="servicios">
+          <div class="page-head">
+            <h1>Servicios</h1>
+          </div>
+          <article class="hero">
+            <p class="hero-display">Próximamente</p>
+          </article>
+          <p class="note">Acá vas a ver la luz, el gas y el resto, con el aumento estimado.</p>
+        </section>
+
+        <section class="view" id="suscripciones">
+          <div class="page-head">
+            <h1>Suscripciones</h1>
+          </div>
+          <article class="hero">
+            <p class="hero-display">Próximamente</p>
+          </article>
+          <p class="note">Acá vas a ver lo que se debita solo todos los meses.</p>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
