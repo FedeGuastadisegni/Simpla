@@ -29,9 +29,10 @@ jobs:
 
       - name: Assemble site
         run: |
-          mkdir -p _site/icons
+          mkdir -p _site/icons _site/fonts
           cp index.html styles.css app.js sw.js manifest.webmanifest favicon.ico _site/
           cp icons/* _site/icons/
+          cp fonts/* _site/fonts/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5

@@ -1,5 +1,5 @@
 /* Shell de Simpla. Subí CACHE cuando cambien los archivos precacheados. */
-const CACHE = "simpla-shell-v1";
+const CACHE = "simpla-shell-v2";
 
 const FILES = [
   "index.html",
@@ -13,6 +13,10 @@ const FILES = [
   "icons/icon-maskable-512.png",
   "icons/apple-touch-icon.png",
   "icons/favicon-32.png",
+  "fonts/bricolage-grotesque-latin-400-normal.woff2",
+  "fonts/bricolage-grotesque-latin-600-normal.woff2",
+  "fonts/bricolage-grotesque-latin-800-normal.woff2",
+  "fonts/instrument-serif-latin-400-italic.woff2",
 ];
 
 self.addEventListener("install", (event) => {
