@@ -2,7 +2,7 @@
 
 Simpla es la app personal de Federico para seguir los gastos en Argentina: la tarjeta y sus cuotas, los préstamos, los servicios (con el aumento que se viene) y las suscripciones, con una mirada a los próximos 6 meses.
 
-Este paso es el esqueleto instalable. Todavía no carga datos: cada sección dice «Próximamente». Se adapta al modo claro u oscuro del sistema y, después de la primera visita, abre aunque no haya internet.
+Por ahora es el esqueleto: se ve el diseño, pero todavía no carga datos. Se adapta al modo claro u oscuro del sistema y, después de la primera visita, abre aunque no haya internet. Las fuentes van en el repositorio (Bricolage Grotesque e Instrument Serif, licencia OFL), así el texto también carga sin conexión.
 
 ## Instalar
 
