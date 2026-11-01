@@ -26,7 +26,18 @@
   </style>
 </head>
 <body>
-  <div class="frame">
+  <div id="login" class="login">
+    <div class="login-card">
+      <img src="icons/logo.png" width="56" height="56" alt="">
+      <p class="login-mark">Simpla</p>
+      <p class="login-serif">Tus gastos, en orden.</p>
+      <button type="button" id="google-sign-in" class="google-btn">Entrar con Google</button>
+      <p id="login-error" class="login-error" role="alert" hidden>Esta app es privada</p>
+      <p id="login-offline" class="login-offline" hidden>Para entrar hace falta conexión.</p>
+    </div>
+  </div>
+
+  <div class="frame" hidden>
     <div class="side">
       <header class="topbar">
         <a class="logo-link" href="#inicio">
@@ -36,6 +47,7 @@
       </header>
 
       <nav class="nav" aria-label="Secciones">
+        <div class="nav-links">
         <a href="#inicio">
           <span class="ico">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -81,12 +93,18 @@
           <span class="lbl lbl-short">Suscrip.</span>
           <span class="lbl lbl-full">Suscripciones</span>
         </a>
+        </div>
+        <button type="button" id="sign-out" class="sign-out">Salir</button>
       </nav>
     </div>
 
     <main>
       <div class="content">
         <section class="view" id="inicio">
+          <p class="sync-status" id="sync-status" role="status">
+            <span class="sync-dot" aria-hidden="true"></span>
+            <span id="sync-label"></span>
+          </p>
           <div class="split-head">
             <p class="month" data-month>Este mes</p>
             <p class="kicker">Comprometido</p>
@@ -188,6 +206,7 @@
     </main>
   </div>
 
-  <script src="app.js"></script>
+  <script src="vendor/supabase.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
