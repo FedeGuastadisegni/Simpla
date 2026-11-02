@@ -52,6 +52,9 @@ $$;
 revoke all on function public.is_allowed_user() from public;
 revoke all on function public.set_updated_at() from public;
 revoke all on function public.reject_foreign_email() from public;
+revoke execute on function public.reject_foreign_email() from anon, authenticated, public;
+revoke execute on function public.set_updated_at() from anon;
+revoke execute on function public.is_allowed_user() from anon;
 grant execute on function public.is_allowed_user() to authenticated;
 grant execute on function public.set_updated_at() to authenticated;
 
