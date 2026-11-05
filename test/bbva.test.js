@@ -4,6 +4,7 @@ import test from "node:test";
 import { matchCard, normalizeOcrText, parseBbvaStatement, planStatementImport } from "../bbva.js";
 
 const TEXT = readFileSync(new URL("./fixtures/bbva-ejemplo.txt", import.meta.url), "utf8");
+const VISA = readFileSync(new URL("./fixtures/bbva-visa-signature.txt", import.meta.url), "utf8");
 
 test("EJEMPLO BBVA: extrae los consumos y deja afuera titular, CUIT, cuenta, impuestos y cuotas a vencer", () => {
   const parsed = parseBbvaStatement(TEXT);
@@ -327,4 +328,100 @@ test("EJEMPLO OCR: el texto de una captura entra al mismo parser y no inventa im
   assert.equal(dumped.includes("20-00000000-0"), false);
   assert.equal(dumped.includes("IIBB"), false);
   assert.equal(parseBbvaStatement(normalizeOcrText("hola esto no es un resumen")).charges.length, 0);
+});
+
+test("Visa Signature: lee los consumos del PDF (columnas separadas) y deja afuera pagos, impuestos y titular", () => {
+  const parsed = parseBbvaStatement(VISA);
+  const dumped = JSON.stringify(parsed);
+  assert.equal(parsed.productName, "BBVA Visa");
+  assert.equal(parsed.closingDay, 29);
+  assert.equal(parsed.closingDate, "2026-10-29");
+  assert.equal(parsed.dueDay, 11);
+  assert.equal(parsed.dueDate, "2026-11-11");
+  assert.equal(parsed.nextClosing, "2026-11-26");
+  assert.equal(parsed.nextDue, "2026-12-09");
+  assert.equal(parsed.charges.length, 29);
+  assert.deepEqual(parsed.charges[0], {
+    spent_on: "2026-02-10",
+    description: "MERPAGO*SIMMONSBELMOYOLO",
+    amount: 75378.68,
+    currency: "ARS",
+    installment_number: 9,
+    installment_count: 18,
+    selected: true,
+  });
+  const west = parsed.charges.find((row) => row.description === "MERPAGO*WEST");
+  assert.equal(west.spent_on, "2026-04-22");
+  assert.equal(west.amount, 7272.71);
+  assert.equal(west.installment_number, 7);
+  assert.equal(west.installment_count, 12);
+  const mcg = parsed.charges.find((row) => row.description === "MERPAGO*MCG");
+  assert.equal(mcg.spent_on, "2026-08-10");
+  assert.equal(mcg.installment_number, 3);
+  assert.equal(mcg.installment_count, 9);
+  const farma = parsed.charges.find((row) => row.description.startsWith("FARMACITY"));
+  assert.deepEqual(farma, {
+    spent_on: "2026-10-08",
+    description: "FARMACITY 68",
+    amount: 23399,
+    currency: "ARS",
+    installment_number: null,
+    installment_count: null,
+    selected: true,
+  });
+  const tele = parsed.charges.find((row) => row.description.startsWith("TELECENTRO"));
+  assert.equal(tele.spent_on, "2026-10-23");
+  assert.equal(tele.amount, 40059.28);
+  assert.equal(tele.currency, "ARS");
+  assert.equal(tele.installment_number, null);
+  assert.equal(parsed.charges.some((row) => /^(su pago|impuesto|saldo)\b/i.test(row.description)), false);
+  const cents = parsed.charges.reduce((acc, row) => acc + Math.round(row.amount * 100), 0);
+  assert.equal(cents, 61114108);
+  for (const secret of ["TITULAR EJEMPLO", "Calle Falsa", "0000-000000", "GUASTADISEGNI", "0793084926"]) {
+    assert.equal(dumped.includes(secret), false, secret);
+  }
+});
+
+// NETFLIX no está en el resumen: la columna dólares de este PDF viene vacía.
+const OCR_VISA = `
+Visa
+Banco BBVA
+CIERRE ACTUAL 29 - Oct - 26
+VENCIMIENTO ACTUAL
+11 - Nov - 26
+PRÓXIMO CIERRE 26 - Nov - 26
+PRÓXIMO VENCIMIENTO 09 - Dic - 26
+Consumos F Ejemplo
+10 - Feb - 26 MERPAGO*SIMMONSBELMOYOLO C. 09 / 18 218828 75.378,68
+08 - Oct - 26 FARMACITY 68 000267 23.399,00
+23 - Oct - 26 TELECENTRO SA 000001 40.059,28
+01 - Nov - 26 NETFLIX 100001 0,00 12,99
+05 - Oct - 26 SU PAGO EN PESOS -578.333,05
+TOTAL CONSUMOS DE EJEMPLO 611.141,08
+Impuestos, cargos e intereses
+29 - Oct - 26 IMPUESTO DE SELLOS $ 7.333,69
+`;
+
+test("Visa Signature: el texto de una captura entra al mismo parser", () => {
+  const parsed = parseBbvaStatement(normalizeOcrText(OCR_VISA));
+  assert.equal(parsed.productName, "BBVA Visa");
+  assert.equal(parsed.closingDate, "2026-10-29");
+  assert.equal(parsed.dueDate, "2026-11-11");
+  assert.equal(parsed.nextClosing, "2026-11-26");
+  assert.equal(parsed.nextDue, "2026-12-09");
+  assert.equal(parsed.charges.length, 4);
+  assert.equal(parsed.charges[0].description, "MERPAGO*SIMMONSBELMOYOLO");
+  assert.equal(parsed.charges[0].installment_number, 9);
+  assert.equal(parsed.charges[0].installment_count, 18);
+  assert.equal(parsed.charges[0].amount, 75378.68);
+  assert.equal(parsed.charges[1].description, "FARMACITY 68");
+  assert.equal(parsed.charges[1].amount, 23399);
+  assert.equal(parsed.charges[2].description, "TELECENTRO SA");
+  assert.equal(parsed.charges[2].amount, 40059.28);
+  assert.equal(parsed.charges[3].description, "NETFLIX");
+  assert.equal(parsed.charges[3].currency, "USD");
+  assert.equal(parsed.charges[3].amount, 12.99);
+  const dumped = JSON.stringify(parsed.charges);
+  assert.equal(dumped.includes("SU PAGO"), false);
+  assert.equal(dumped.includes("IMPUESTO"), false);
 });
