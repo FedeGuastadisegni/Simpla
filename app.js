@@ -79,6 +79,9 @@ function fillCalendar() {
   for (const node of document.querySelectorAll("[data-month]")) {
     node.textContent = label;
   }
+  for (const node of document.querySelectorAll("[data-year]")) {
+    node.textContent = String(now.getFullYear());
+  }
 
   const shortMonth = new Intl.DateTimeFormat("es-AR", { month: "short" });
   const items = document.querySelectorAll("#month-rail li");
@@ -213,6 +216,36 @@ onFx(() => {
 });
 refreshFx();
 
+const DUE_ICONS = {
+  cierre: "M4 7.5h16M7 4v2.5M17 4v2.5M6 6.5h12a1.5 1.5 0 0 1 1.5 1.5V18a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 18V8A1.5 1.5 0 0 1 6 6.5Z",
+  vencimiento: "M4 7.5h16v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 16.5v-9Z",
+  servicio: "M13 2.5 4.5 13.5H11l-1 8 9-11H12l1-8Z",
+  suscripcion: "M20 12a8 8 0 1 1-2.3-5.6M20 4.5V10H14.5",
+};
+
+function dueIcon(kind) {
+  const span = document.createElement("span");
+  span.className = "due-ico";
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", DUE_ICONS[kind] || DUE_ICONS.vencimiento);
+  svg.append(path);
+  span.append(svg);
+  return span;
+}
+
+function dueWhen(alert) {
+  const [year, month, day] = String(alert.date || "").split("-").map(Number);
+  if (!year || !month || !day) return alert.days === 1 ? "mañana" : `${alert.days} días`;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const dayLabel = new Intl.DateTimeFormat("es-AR", { day: "numeric", timeZone: "UTC" }).format(date);
+  const monthLabel = new Intl.DateTimeFormat("es-AR", { month: "short", timeZone: "UTC" }).format(date).replace(".", "");
+  const when = alert.days === 0 ? "hoy" : alert.days === 1 ? "mañana" : `${alert.days} días`;
+  return `${dayLabel} ${monthLabel} · ${when}`;
+}
+
 function paintDueSoon(alerts, enabled) {
   const section = document.getElementById("due-soon");
   const list = document.getElementById("due-soon-list");
@@ -225,7 +258,24 @@ function paintDueSoon(alerts, enabled) {
   section.hidden = false;
   for (const alert of alerts) {
     const item = document.createElement("li");
-    item.textContent = alert.text;
+    item.className = alert.days <= 7 ? "due-row is-alert" : "due-row";
+    const share = Math.max(0.18, 1 - (Number(alert.days) || 0) / 30);
+    item.style.setProperty("--share", share.toFixed(3));
+    const copy = document.createElement("div");
+    copy.className = "due-copy";
+    const title = document.createElement("p");
+    title.className = "row-title";
+    title.textContent = alert.text;
+    const bar = document.createElement("span");
+    bar.className = "due-bar";
+    bar.setAttribute("aria-hidden", "true");
+    const fill = document.createElement("span");
+    bar.append(fill);
+    copy.append(title, bar);
+    const when = document.createElement("span");
+    when.className = "due-when";
+    when.textContent = dueWhen(alert);
+    item.append(dueIcon(alert.kind), copy, when);
     list.append(item);
   }
 }

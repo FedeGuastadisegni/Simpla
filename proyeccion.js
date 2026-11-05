@@ -1,7 +1,7 @@
 import { listRows, onData } from "./db.js";
 import { amountNode, putAmount } from "./money-view.js";
 import { combinedForecast, monthDelta, nextMonthChange } from "./combined.js";
-import { upcomingPayments } from "./projections.js";
+import { roundMoney, upcomingPayments } from "./projections.js";
 
 function money(amount, currency) {
   const formatted = new Intl.NumberFormat("es-AR", {
@@ -63,25 +63,95 @@ function hasAnything(data) {
   return data.cardItems.length + data.loans.length + data.serviceBills.length + data.subscriptions.length > 0;
 }
 
+const NS = "http://www.w3.org/2000/svg";
+
+const CATS = [
+  { key: "tarjeta", label: "Tarjeta", slice: "--slice-1", value: (month) => Number(month.tarjeta?.ARS) || 0, meta: (data) => cuenta(data.cardItems.length, "consumo", "consumos") },
+  { key: "prestamos", label: "Préstamos", slice: "--slice-2", value: (month) => Number(month.prestamos) || 0, meta: (data) => cuenta(data.loans.length, "préstamo", "préstamos") },
+  { key: "servicios", label: "Servicios", slice: "--slice-3", value: (month) => Number(month.servicios) || 0, meta: (data) => cuenta(data.services.length, "servicio", "servicios") },
+  { key: "suscripciones", label: "Suscripciones", slice: "--slice-4", value: (month) => Number(month.suscripciones?.ARS) || 0, meta: (data) => cuenta(data.subscriptions.length, "suscripción", "suscripciones") },
+];
+
+function cuenta(count, one, many) {
+  const total = Number(count) || 0;
+  if (total <= 0) return "";
+  return total === 1 ? `1 ${one}` : `${total} ${many}`;
+}
+
+function wholePercents(parts, total) {
+  const raw = parts.map((part) => (part.value / total) * 100);
+  const floors = raw.map((value) => Math.floor(value));
+  let left = 100 - floors.reduce((sum, value) => sum + value, 0);
+  const order = raw
+    .map((value, index) => ({ index, frac: value - floors[index] }))
+    .sort((a, b) => b.frac - a.frac);
+  for (const item of order) {
+    if (left <= 0) break;
+    floors[item.index] += 1;
+    left -= 1;
+  }
+  return floors;
+}
+
 function paintRing(month) {
   const ring = document.getElementById("inicio-ring");
-  const pct = document.getElementById("inicio-ring-pct");
-  const arc = ring?.querySelector(".ring-value");
-  if (!ring || !pct || !arc) return;
-  if (!month) {
+  const svg = document.getElementById("inicio-ring-svg");
+  const legend = document.getElementById("inicio-legend");
+  if (!ring || !svg || !legend) return;
+  svg.replaceChildren();
+  legend.replaceChildren();
+  const parts = month ? CATS.map((cat) => ({ ...cat, value: cat.value(month) })).filter((part) => part.value > 0) : [];
+  const total = parts.reduce((sum, part) => sum + part.value, 0);
+  if (total <= 0) {
     ring.hidden = true;
     return;
   }
-  const total = Number(month.totals?.ARS) || 0;
-  const card = Number(month.tarjeta?.ARS) || 0;
-  const ratio = total > 0 ? Math.min(Math.max(card / total, 0), 1) : 0;
-  const percent = Math.round(ratio * 100);
-  const radius = Number(arc.getAttribute("r")) || 54;
+  const radius = 46;
   const length = 2 * Math.PI * radius;
-  arc.style.strokeDasharray = `${(ratio * length).toFixed(1)} ${length.toFixed(1)}`;
-  pct.textContent = `${percent}%`;
-  ring.setAttribute("aria-label", `Tarjeta, ${percent}% del comprometido`);
+  const gap = parts.length > 1 ? Math.min(14, length / parts.length / 5) : 0;
+  const track = document.createElementNS(NS, "circle");
+  track.setAttribute("class", "ring-track");
+  track.setAttribute("cx", "60");
+  track.setAttribute("cy", "60");
+  track.setAttribute("r", String(radius));
+  svg.append(track);
+  const percents = wholePercents(parts, total);
+  let cursor = 0;
+  parts.forEach((part, index) => {
+    const full = (part.value / total) * length;
+    const dash = Math.max(full - gap, 1);
+    const arc = document.createElementNS(NS, "circle");
+    arc.setAttribute("class", "ring-arc");
+    arc.setAttribute("cx", "60");
+    arc.setAttribute("cy", "60");
+    arc.setAttribute("r", String(radius));
+    arc.setAttribute("transform", "rotate(-90 60 60)");
+    arc.style.stroke = `var(${part.slice})`;
+    arc.style.strokeDasharray = `${dash.toFixed(2)} ${length.toFixed(2)}`;
+    arc.style.strokeDashoffset = (-(cursor + gap / 2)).toFixed(2);
+    svg.append(arc);
+    cursor += full;
+    const item = document.createElement("li");
+    const dot = document.createElement("i");
+    dot.style.background = `var(${part.slice})`;
+    item.append(dot, document.createTextNode(`${percents[index]}% ${part.label}`));
+    legend.append(item);
+  });
   ring.hidden = false;
+}
+
+function paintCats(month, data) {
+  const values = CATS.map((cat) => ({ ...cat, value: month ? cat.value(month) : 0 }));
+  const max = values.reduce((peak, cat) => Math.max(peak, cat.value), 0);
+  for (const cat of values) {
+    const row = document.querySelector(`[data-cat="${cat.key}"]`);
+    if (!row) continue;
+    const share = max > 0 ? cat.value / max : 0;
+    row.style.setProperty("--share", share.toFixed(3));
+    row.classList.toggle("is-empty", share <= 0);
+    const meta = row.querySelector(".cat-meta");
+    if (meta) meta.textContent = data ? cat.meta(data) : "";
+  }
 }
 
 function paintBars(months, enabled) {
@@ -106,18 +176,20 @@ function paintInicio(months, data) {
   if (!hasAnything(data)) {
     display.textContent = "Sin datos";
     usd.hidden = true;
-    next.textContent = "Cuando haya datos, acá vas a ver cómo cambia el mes que viene.";
+    next.hidden = true;
     paintRing(null);
+    paintCats(null, null);
     paintBars(months, false);
     return;
   }
   const now = months[0];
-  const later = months[1];
   display.textContent = money(now.totals.ARS, "ARS");
   usd.hidden = false;
   putAmount(usd, now.totals.USD, "USD");
-  next.replaceChildren(`El mes que viene ${money(later.totals.ARS, "ARS")} · `, amountNode(later.totals.USD, "USD"));
+  next.hidden = false;
+  next.textContent = "Ver cambios y sugerencias";
   paintRing(now);
+  paintCats(now, data);
   paintBars(months, true);
 }
 
@@ -195,8 +267,50 @@ function monthEnding(month) {
   return lines;
 }
 
+const CHANGE_ICONS = {
+  calendar: "M7 4v2.5M17 4v2.5M4.5 9h15M6 6.5h12a1.5 1.5 0 0 1 1.5 1.5V18a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 18V8A1.5 1.5 0 0 1 6 6.5Z",
+  trend: "M4 16l5-5 3 3 7-8M14 6h5v5",
+  refresh: "M20 12a8 8 0 1 1-2.3-5.6M20 4.5V10H14.5",
+};
+
 function paintAmount(parent, amount, currency) {
   parent.append(amountNode(amount, currency));
+}
+
+function changeIcon(name) {
+  const span = document.createElement("span");
+  span.className = "change-ico";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS(NS, "path");
+  path.setAttribute("d", CHANGE_ICONS[name] || CHANGE_ICONS.calendar);
+  svg.append(path);
+  span.append(svg);
+  return span;
+}
+
+function signedPercent(now, next) {
+  if (!now) return "";
+  const pct = ((next - now) / now) * 100;
+  const abs = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 }).format(Math.abs(pct));
+  return `${pct < 0 ? "−" : "+"}${abs}%`;
+}
+
+function changeRow(parent, spec) {
+  const row = add(parent, "div", "change-row");
+  row.append(changeIcon(spec.icon));
+  const copy = add(row, "div", "change-copy");
+  add(copy, "p", "row-title", spec.title);
+  if (spec.meta) add(copy, "p", "row-meta", spec.meta);
+  if (spec.note) add(copy, "p", "row-meta", spec.note);
+  if (spec.amount == null) return row;
+  const tone = spec.tone === "down" ? "is-down" : spec.tone === "up" ? "is-up" : "";
+  const pill = add(row, "span", tone ? `delta-pill ${tone}` : "delta-pill");
+  if (spec.tone === "down") pill.append("−");
+  else if (spec.tone === "up") pill.append("+");
+  paintAmount(pill, Math.abs(spec.amount), spec.currency || "ARS");
+  return row;
 }
 
 function paintNextChange(months, data) {
@@ -208,77 +322,79 @@ function paintNextChange(months, data) {
     return;
   }
   const change = nextMonthChange(months[0], months[1], data.subscriptions);
+  const nothingLoaded = months.every((month) => month.totals.ARS === 0 && month.totals.USD === 0);
+  if (change.quiet && nothingLoaded) {
+    add(root, "p", "empty", "Cuando haya datos, acá vas a ver cómo cambia el mes que viene.");
+    return;
+  }
   if (change.quiet) {
     add(root, "p", "empty", "Sin cambios fuertes el mes que viene.");
     return;
   }
 
-  add(root, "h3", "change-label", "Cuotas que terminan");
-  if (!change.ending.length) {
-    add(root, "p", "service-note", "Ninguna cuota termina este mes.");
-  } else {
-    for (const item of change.ending) {
-      const line = add(root, "p", "change-line");
-      line.append(`${item.name} · ${item.kind === "prestamo" ? "Préstamo" : "Tarjeta"} · `);
-      paintAmount(line, item.amount, item.currency);
+  for (const item of change.ending) {
+    changeRow(root, {
+      icon: "calendar",
+      title: item.kind === "prestamo" ? "Préstamo termina" : "Cuota termina",
+      meta: item.name,
+      amount: item.amount,
+      currency: item.currency,
+      tone: "down",
+    });
+  }
+  if (change.ending.length > 1 && (change.drop.ARS > 0 || change.drop.USD > 0)) {
+    const drop = add(root, "p", "service-note");
+    drop.append("Por estas cuotas, el mes que viene baja ");
+    const parts = [];
+    if (change.drop.ARS > 0) parts.push(["ARS", change.drop.ARS]);
+    if (change.drop.USD > 0) parts.push(["USD", change.drop.USD]);
+    parts.forEach(([currency, amount], index) => {
+      if (index > 0) drop.append(" y ");
+      paintAmount(drop, amount, currency);
+    });
+    drop.append(".");
+  }
+
+  for (const service of change.services) {
+    if (service.kind === "sin-datos") {
+      changeRow(root, { icon: "trend", title: service.name, meta: service.text });
+      continue;
     }
-    if (change.drop.ARS > 0 || change.drop.USD > 0) {
-      const drop = add(root, "p", "service-note");
-      drop.append("Por estas cuotas, el mes que viene baja ");
-      const parts = [];
-      if (change.drop.ARS > 0) parts.push(["ARS", change.drop.ARS]);
-      if (change.drop.USD > 0) parts.push(["USD", change.drop.USD]);
-      parts.forEach(([currency, amount], index) => {
-        if (index > 0) drop.append(" y ");
-        paintAmount(drop, amount, currency);
+    if (service.kind === "sin-historial") {
+      changeRow(root, {
+        icon: "trend",
+        title: service.name,
+        meta: service.text,
+        amount: service.next,
+        currency: "ARS",
+        tone: "flat",
       });
-      drop.append(".");
+      continue;
     }
+    const delta = roundMoney(service.next - service.now);
+    const pct = signedPercent(service.now, service.next);
+    changeRow(root, {
+      icon: "trend",
+      title: service.kind === "baja" ? "Servicio baja" : "Servicio sube",
+      meta: [service.name, pct].filter(Boolean).join(" · "),
+      note: service.text,
+      amount: delta,
+      currency: "ARS",
+      tone: delta < 0 ? "down" : "up",
+    });
   }
 
-  add(root, "h3", "change-label", "Servicios");
-  if (!change.services.length) {
-    add(root, "p", "service-note", "Ningún servicio cambia el mes que viene.");
-  } else {
-    for (const service of change.services) {
-      const line = add(root, "p", "change-line");
-      if (service.kind === "sin-datos") {
-        line.textContent = `${service.name}: ${service.text}`;
-        continue;
-      }
-      if (service.kind === "sin-historial") {
-        line.append(`${service.name}: ${service.text} `);
-        if (service.next != null) {
-          line.append("Se mantiene en ");
-          paintAmount(line, service.next, "ARS");
-          line.append(".");
-        }
-        continue;
-      }
-      const verb = service.kind === "baja" ? "baja a" : "sube a";
-      line.append(`${service.name}: este mes `);
-      paintAmount(line, service.now, "ARS");
-      line.append(`, el que viene ${verb} `);
-      paintAmount(line, service.next, "ARS");
-      line.append(".");
-      if (service.text) add(root, "p", "service-note", service.text);
-    }
-  }
-
-  add(root, "h3", "change-label", "Suscripciones");
-  if (!change.subscriptions.length) {
-    add(root, "p", "service-note", "Ninguna suscripción cobra el mes que viene.");
-  } else {
-    const pesos = change.subscriptions.filter((item) => item.currency === "ARS");
-    const dolares = change.subscriptions.filter((item) => item.currency === "USD");
-    for (const group of [pesos, dolares]) {
-      for (const item of group) {
-        const line = add(root, "p", "change-line");
-        const when = item.frequency === "anual" ? "anual" : "mensual";
-        line.append(`${item.name} · ${when} · `);
-        paintAmount(line, item.amount, item.currency);
-      }
-    }
+  const pesos = change.subscriptions.filter((item) => item.currency === "ARS");
+  const dolares = change.subscriptions.filter((item) => item.currency === "USD");
+  for (const item of [...pesos, ...dolares]) {
+    changeRow(root, {
+      icon: "refresh",
+      title: item.name,
+      meta: item.frequency === "anual" ? "Anual" : "Mensual",
+      amount: item.amount,
+      currency: item.currency,
+      tone: "flat",
+    });
   }
 
   const net = add(root, "p", "change-net");
