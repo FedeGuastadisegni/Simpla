@@ -1,5 +1,5 @@
 /* Shell de Simpla. Subí CACHE cuando cambien los archivos precacheados. */
-const CACHE = "simpla-shell-v17";
+const CACHE = "simpla-shell-v18";
 
 const FILES = [
   "index.html",
@@ -18,6 +18,7 @@ const FILES = [
   "proyeccion.js",
   "bbva.js",
   "pdf-text.js",
+  "ocr.js",
   "resumen.js",
   "fx.js",
   "theme.js",

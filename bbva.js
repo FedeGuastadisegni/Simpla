@@ -144,6 +144,15 @@ function parseCharge(line) {
   };
 }
 
+export function normalizeOcrText(raw) {
+  let text = String(raw ?? "").replace(/\u00a0/g, " ");
+  text = text.replace(/(\d)\s*\/\s*(?=\d)/g, "$1/");
+  text = text.replace(/C\s*\.\s*(\d{1,2}\/\d{1,2})/gi, "C.$1");
+  text = text.replace(/[ \t]*\r?\n[ \t]*/g, "\n");
+  text = text.replace(/(?<=\S)[ \t]+(?=\d{2}\/\d{2}\/\d{4}\b)/g, "\n");
+  return text;
+}
+
 export function parseBbvaStatement(text) {
   const lines = String(text ?? "")
     .split(/\r?\n/)

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { matchCard, parseBbvaStatement, planStatementImport } from "../bbva.js";
+import { matchCard, normalizeOcrText, parseBbvaStatement, planStatementImport } from "../bbva.js";
 
 const TEXT = readFileSync(new URL("./fixtures/bbva-ejemplo.txt", import.meta.url), "utf8");
 
@@ -297,4 +297,34 @@ test("EJEMPLO BBVA: reutiliza una tarjeta parecida y no usa una Visa distinta", 
   assert.equal(matchCard(cards, "BBVA Mastercard").id, "bbva");
   assert.equal(matchCard([{ id: "visa", name: "Visa ejemplo" }], "BBVA Mastercard"), null);
   assert.equal(matchCard([{ id: "same", name: "BBVA Mastercard" }], "bbva mastercard").id, "same");
+});
+
+const OCR_EJEMPLO = `
+Visa ejemplo
+Fecha de cierre : 15 / 10 / 2026
+Fecha de vencimiento : 01 / 11 / 2026
+Titular: JUAN EJEMPLO
+CUIT: 20-00000000-0
+01 / 10 / 2026   SUPER MERCADO EJEMPLO   12.500,00
+03/10/2026 SWISS MEDICAL EJEMPLO C. 06 / 12 25.015,95
+IMPUESTOS Y PERCEPCIONES
+IIBB CABA 450,00
+`;
+
+test("EJEMPLO OCR: el texto de una captura entra al mismo parser y no inventa impuestos", () => {
+  const parsed = parseBbvaStatement(normalizeOcrText(OCR_EJEMPLO));
+  const dumped = JSON.stringify(parsed.charges);
+  assert.equal(parsed.productName, "Visa");
+  assert.equal(parsed.closingDate, "2026-10-15");
+  assert.equal(parsed.dueDate, "2026-11-01");
+  assert.equal(parsed.charges.length, 2);
+  assert.equal(parsed.charges[0].description, "SUPER MERCADO EJEMPLO");
+  assert.equal(parsed.charges[0].amount, 12500);
+  assert.equal(parsed.charges[1].description, "SWISS MEDICAL EJEMPLO");
+  assert.equal(parsed.charges[1].installment_number, 6);
+  assert.equal(parsed.charges[1].installment_count, 12);
+  assert.equal(dumped.includes("JUAN EJEMPLO"), false);
+  assert.equal(dumped.includes("20-00000000-0"), false);
+  assert.equal(dumped.includes("IIBB"), false);
+  assert.equal(parseBbvaStatement(normalizeOcrText("hola esto no es un resumen")).charges.length, 0);
 });
