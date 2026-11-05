@@ -210,7 +210,9 @@
 
           <section class="glass panel">
             <h2 class="block-title">Próximos pagos</h2>
-            <p class="empty">Todavía no hay pagos cargados.</p>
+            <div id="upcoming-list">
+              <p class="empty">Todavía no hay pagos cargados.</p>
+            </div>
           </section>
         </section>
 
@@ -229,8 +231,8 @@
           </div>
           <div id="pdf-drop" class="pdf-drop">
             <button type="button" id="import-pdf" class="btn-primary import-pdf">Importar resumen</button>
-            <p class="hint pdf-drop-note">Soltá el PDF acá, o elegilo con el botón. Se lee en este teléfono y no se guarda.</p>
-            <p class="hint pdf-drop-phone">El PDF se lee en este teléfono y no se guarda.</p>
+            <p class="hint pdf-drop-note">Soltá el PDF del resumen, o elegilo con el botón. Se lee en este teléfono y no se guarda.</p>
+            <p class="hint pdf-drop-phone">Elegí el PDF del resumen. Se lee en este teléfono y no se guarda.</p>
           </div>
           <input id="import-pdf-file" type="file" accept="application/pdf,.pdf" hidden>
           <section id="pdf-review" class="sheet" hidden>
@@ -242,7 +244,7 @@
               <input id="pdf-card-name" type="text" maxlength="80" autocomplete="off">
             </label>
             <p id="pdf-card-note" class="service-note"></p>
-            <p class="hint">Solo se guardan los consumos que dejes tildados.</p>
+            <p class="hint">Tildá lo que querés guardar. Lo que ya estaba cargado viene destildado.</p>
             <div id="pdf-lines"></div>
             <p id="pdf-error" class="form-error" role="alert"></p>
             <p id="pdf-notice" class="service-note"></p>
@@ -336,14 +338,16 @@
                 <input name="tem" type="number" min="0" step="0.000001" inputmode="decimal">
               </label>
               <label>CFT (%)
-                <input name="cft" type="number" min="0" step="0.0001" inputmode="decimal">
+                <input name="cft" type="number" min="0" step="0.0001" inputmode="decimal" placeholder="Opcional">
               </label>
+              <p class="hint">Opcional. Es una referencia del costo total y no entra en la cuota.</p>
               <label>Cuota que dice el banco
-                <input name="current_installment_bank" type="number" min="0" step="0.01" inputmode="decimal">
+                <input name="current_installment_bank" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Opcional">
               </label>
+              <p class="hint">Opcional. Sirve para comparar. No cambia los totales salvo que ajustes abajo.</p>
               <label class="check">
                 <input name="adjust_bank" type="checkbox">
-                Ajustar con la cuota del banco
+                Ajustar los totales con la cuota del banco
               </label>
             </div>
             <label>Cuotas restantes
@@ -374,9 +378,11 @@
                 <option value="luz">Luz</option>
                 <option value="gas">Gas</option>
                 <option value="agua">Agua</option>
+                <option value="municipal">Municipal</option>
+                <option value="arba">ARBA</option>
                 <option value="internet">Internet</option>
-                <option value="celular">Celular</option>
-                <option value="otro">Otro</option>
+                <option value="linea_celular">Línea de celular</option>
+                <option value="seguro_auto">Seguro auto</option>
               </select>
             </label>
             <p id="service-form-error" class="form-error" role="alert"></p>
