@@ -36,7 +36,7 @@ function money(amount, currency) {
 function monthLabel(month, style) {
   const date = new Date(month.year, month.month, 1);
   const text = new Intl.DateTimeFormat("es-AR", { month: style }).format(date).replace(".", "");
-  return style === "short" ? text.toLocaleUpperCase("es-AR") : text.charAt(0).toLocaleUpperCase("es-AR") + text.slice(1);
+  return text.charAt(0).toLocaleUpperCase("es-AR") + text.slice(1);
 }
 
 function todayIso() {

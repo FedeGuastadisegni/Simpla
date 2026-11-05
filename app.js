@@ -74,7 +74,7 @@ function fillCalendar() {
   const items = document.querySelectorAll("#month-rail li");
   items.forEach((item, index) => {
     const date = new Date(now.getFullYear(), now.getMonth() + index, 1);
-    const name = shortMonth.format(date).replace(".", "").toLocaleUpperCase("es-AR");
+    const name = capitalize(shortMonth.format(date).replace(".", ""));
     const railLabel = item.querySelector(".rail-label");
     if (railLabel) railLabel.textContent = name;
     item.classList.toggle("is-now", index === 0);
@@ -171,12 +171,25 @@ document.querySelectorAll("[data-theme-choice]").forEach((button) => {
   });
 });
 markTheme(readTheme(localStorage));
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  markTheme(readTheme(localStorage));
+});
+
+function resolvedDark(choice) {
+  if (choice === "dark") return true;
+  if (choice === "light") return false;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
 
 function markTheme(choice) {
   document.querySelectorAll("[data-theme-choice]").forEach((button) => {
     const on = button.dataset.themeChoice === choice;
     button.classList.toggle("is-on", on);
     button.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+  const color = resolvedDark(choice) ? "#1A1512" : "#F6E6D2";
+  document.querySelectorAll('meta[name="theme-color"]').forEach((node) => {
+    node.setAttribute("content", color);
   });
 }
 

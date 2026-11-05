@@ -62,6 +62,41 @@ function hasAnything(data) {
   return data.cardItems.length + data.loans.length + data.serviceBills.length + data.subscriptions.length > 0;
 }
 
+function paintRing(month) {
+  const ring = document.getElementById("inicio-ring");
+  const pct = document.getElementById("inicio-ring-pct");
+  const arc = ring?.querySelector(".ring-value");
+  if (!ring || !pct || !arc) return;
+  if (!month) {
+    ring.hidden = true;
+    return;
+  }
+  const total = Number(month.totals?.ARS) || 0;
+  const card = Number(month.tarjeta?.ARS) || 0;
+  const ratio = total > 0 ? Math.min(Math.max(card / total, 0), 1) : 0;
+  const percent = Math.round(ratio * 100);
+  const radius = Number(arc.getAttribute("r")) || 54;
+  const length = 2 * Math.PI * radius;
+  arc.style.strokeDasharray = `${(ratio * length).toFixed(1)} ${length.toFixed(1)}`;
+  pct.textContent = `${percent}%`;
+  ring.setAttribute("aria-label", `Tarjeta, ${percent}% del comprometido`);
+  ring.hidden = false;
+}
+
+function paintBars(months, enabled) {
+  const items = document.querySelectorAll("#month-rail li");
+  const values = enabled ? months.map((month) => Number(month.totals?.ARS) || 0) : [];
+  const max = values.reduce((peak, value) => Math.max(peak, value), 0);
+  items.forEach((item, index) => {
+    if (!enabled || max <= 0) {
+      item.style.setProperty("--bar", index === 0 ? "1" : "0.62");
+      return;
+    }
+    const ratio = Math.max((values[index] || 0) / max, 0.18);
+    item.style.setProperty("--bar", ratio.toFixed(3));
+  });
+}
+
 function paintInicio(months, data) {
   const display = document.getElementById("inicio-total");
   const usd = document.getElementById("inicio-usd");
@@ -71,6 +106,8 @@ function paintInicio(months, data) {
     display.textContent = "Sin datos";
     usd.hidden = true;
     next.textContent = "Cuando haya datos, acá vas a ver cómo cambia el mes que viene.";
+    paintRing(null);
+    paintBars(months, false);
     return;
   }
   const now = months[0];
@@ -79,6 +116,8 @@ function paintInicio(months, data) {
   usd.hidden = false;
   putAmount(usd, now.totals.USD, "USD");
   next.replaceChildren(`El mes que viene ${money(later.totals.ARS, "ARS")} · `, amountNode(later.totals.USD, "USD"));
+  paintRing(now);
+  paintBars(months, true);
 }
 
 function categoryRow(parent, label, fill) {
