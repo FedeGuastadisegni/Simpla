@@ -1,10 +1,13 @@
 /* Shell de Simpla. Subí CACHE cuando cambien los archivos precacheados. */
-const CACHE = "simpla-shell-v2";
+const CACHE = "simpla-shell-v3";
 
 const FILES = [
   "index.html",
   "styles.css",
   "app.js",
+  "config.js",
+  "db.js",
+  "vendor/supabase.js",
   "manifest.webmanifest",
   "favicon.ico",
   "icons/logo.png",
