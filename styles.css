@@ -266,6 +266,17 @@ summary {
   color: inherit;
 }
 
+/* The native menu stays light on this platform. Pin option colors so dark-theme text is not pale on white. */
+select {
+  color-scheme: light;
+}
+
+option {
+  color-scheme: light;
+  color: #2A2420;
+  background-color: #ffffff;
+}
+
 button {
   cursor: pointer;
 }
