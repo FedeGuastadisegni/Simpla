@@ -1,4 +1,4 @@
-import { matchCard, parseBbvaStatement, planStatementImport } from "./bbva.js";
+import { matchCard, normalizeOcrText, parseBbvaStatement, planStatementImport } from "./bbva.js";
 import { amountNode } from "./money-view.js";
 import { redactLongNumbers } from "./privacy.js";
 import { listRows, queueChange } from "./db.js";
@@ -214,38 +214,22 @@ function stamp(row) {
   return { ...row, updated_at: now, created_at: row.created_at || now };
 }
 
-async function openFile(file) {
+const OCR_FAIL = "No pude leer bien la captura; cargá a mano o probá el PDF";
+
+async function showReview(parsed, emptyMessage) {
   const error = document.getElementById("pdf-error");
-  error.textContent = "";
-  let bytes = new Uint8Array(await file.arrayBuffer());
-  let text = "";
-  try {
-    text = await textFromPdf(bytes);
-    review = parseBbvaStatement(text);
-  } catch (failure) {
-    review = null;
-    document.getElementById("pdf-review").hidden = false;
-    error.textContent = "No pude leer ese PDF.";
-    return;
-  } finally {
-    text = "";
-    try {
-      bytes.fill(0);
-    } catch (ignored) {
-      /* el buffer puede haber quedado desprendido */
-    }
-    bytes = null;
-  }
-  if (!review.charges.length) {
+  if (!parsed?.charges?.length) {
     review = null;
     clear(document.getElementById("pdf-lines"));
     document.getElementById("pdf-summary").textContent = "";
     document.getElementById("pdf-dates").textContent = "";
     document.getElementById("pdf-balances").textContent = "";
-    error.textContent = "No encontré consumos en ese resumen.";
+    error.textContent = emptyMessage;
     document.getElementById("pdf-review").hidden = false;
     return;
   }
+  review = parsed;
+  error.textContent = "";
   const panel = document.getElementById("pdf-review");
   panel.hidden = false;
   const dates = [`Cierre ${shortDate(review.closingDate)}`, `Vencimiento ${shortDate(review.dueDate)}`];
@@ -261,6 +245,53 @@ async function openFile(file) {
   await paintCardChoice();
   paintSummary();
   panel.scrollIntoView({ block: "start" });
+}
+
+async function openFile(file) {
+  const error = document.getElementById("pdf-error");
+  error.textContent = "";
+  let bytes = new Uint8Array(await file.arrayBuffer());
+  let text = "";
+  try {
+    text = await textFromPdf(bytes);
+    await showReview(parseBbvaStatement(text), "No encontré consumos en ese resumen.");
+  } catch (failure) {
+    review = null;
+    document.getElementById("pdf-review").hidden = false;
+    error.textContent = "No pude leer ese PDF.";
+  } finally {
+    text = "";
+    try {
+      bytes.fill(0);
+    } catch (ignored) {
+      /* el buffer puede haber quedado desprendido */
+    }
+    bytes = null;
+  }
+}
+
+async function openImage(file) {
+  const error = document.getElementById("pdf-error");
+  const notice = document.getElementById("pdf-notice");
+  error.textContent = "";
+  notice.textContent = "Leyendo la captura en este teléfono. No se guarda.";
+  document.getElementById("pdf-review").hidden = false;
+  clear(document.getElementById("pdf-lines"));
+  let text = "";
+  try {
+    const { textFromImage } = await import("./ocr.js");
+    text = normalizeOcrText(await textFromImage(file));
+    const parsed = parseBbvaStatement(text);
+    text = "";
+    notice.textContent = "";
+    await showReview(parsed, OCR_FAIL);
+  } catch (failure) {
+    text = "";
+    review = null;
+    notice.textContent = "";
+    clear(document.getElementById("pdf-lines"));
+    error.textContent = OCR_FAIL;
+  }
 }
 
 async function confirmReview() {
@@ -336,15 +367,30 @@ async function confirmReview() {
   document.getElementById("pdf-summary").textContent = notice.textContent;
 }
 
-function takePdf(file) {
+function isPdf(file) {
+  const name = file.name.toLowerCase();
+  return file.type === "application/pdf" || name.endsWith(".pdf");
+}
+
+function isImage(file) {
+  const type = (file.type || "").toLowerCase();
+  const name = file.name.toLowerCase();
+  return type === "image/jpeg" || type === "image/png" || type === "image/webp"
+    || name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png") || name.endsWith(".webp");
+}
+
+function takeStatement(file) {
   if (!file) return;
-  const pdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-  if (!pdf) {
-    document.getElementById("pdf-review").hidden = false;
-    document.getElementById("pdf-error").textContent = "Ese archivo no es un PDF.";
+  if (isPdf(file)) {
+    openFile(file);
     return;
   }
-  openFile(file);
+  if (isImage(file)) {
+    openImage(file);
+    return;
+  }
+  document.getElementById("pdf-review").hidden = false;
+  document.getElementById("pdf-error").textContent = "Ese archivo no es un PDF ni una captura.";
 }
 
 function wire() {
@@ -357,7 +403,7 @@ function wire() {
   input.addEventListener("change", async () => {
     const file = input.files && input.files[0];
     input.value = "";
-    takePdf(file);
+    takeStatement(file);
   });
   document.getElementById("pdf-card-name").addEventListener("input", paintSummary);
   drop.addEventListener("dragover", (event) => {
@@ -368,7 +414,7 @@ function wire() {
   drop.addEventListener("drop", (event) => {
     event.preventDefault();
     drop.classList.remove("is-over");
-    takePdf(event.dataTransfer?.files?.[0]);
+    takeStatement(event.dataTransfer?.files?.[0]);
   });
   document.getElementById("pdf-cancel").addEventListener("click", closeReview);
   document.getElementById("pdf-confirm").addEventListener("click", () => {
