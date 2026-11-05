@@ -1045,6 +1045,37 @@ dialog::backdrop {
   text-transform: uppercase;
 }
 
+.sheet [data-loan="aleman"] {
+  display: grid;
+  gap: 10px;
+}
+
+.sheet [data-loan="aleman"][hidden] {
+  display: none;
+}
+
+.sheet label.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 0.95rem;
+}
+
+.sheet label.check input {
+  width: 1.1rem;
+  height: 1.1rem;
+  padding: 0;
+}
+
+.loan-schedule {
+  margin: 8px 0 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 .sheet input,
 .sheet select {
   font: inherit;

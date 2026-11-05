@@ -236,9 +236,33 @@
             <label>Nombre
               <input name="name" type="text" maxlength="80" required autocomplete="off">
             </label>
-            <label>Cuota
+            <label>Sistema
+              <select name="amortization">
+                <option value="fija">Cuota fija</option>
+                <option value="aleman">Cuota decreciente</option>
+              </select>
+            </label>
+            <label data-loan="fija">Cuota
               <input name="installment_amount" type="number" min="0" step="0.01" inputmode="decimal" required>
             </label>
+            <div data-loan="aleman" hidden>
+              <label>Capital restante
+                <input name="remaining_principal" type="number" min="0" step="0.01" inputmode="decimal">
+              </label>
+              <label>TEM (%)
+                <input name="tem" type="number" min="0" step="0.000001" inputmode="decimal">
+              </label>
+              <label>CFT (%)
+                <input name="cft" type="number" min="0" step="0.0001" inputmode="decimal">
+              </label>
+              <label>Cuota que dice el banco
+                <input name="current_installment_bank" type="number" min="0" step="0.01" inputmode="decimal">
+              </label>
+              <label class="check">
+                <input name="adjust_bank" type="checkbox">
+                Ajustar con la cuota del banco
+              </label>
+            </div>
             <label>Cuotas restantes
               <input name="remaining_installments" type="number" min="0" step="1" inputmode="numeric" required>
             </label>

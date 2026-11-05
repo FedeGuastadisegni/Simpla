@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  bankDifference,
+  germanSchedule,
   loanHits,
   loansInMonth,
   serviceAmountInMonth,
@@ -27,6 +29,52 @@ test("EJEMPLO préstamos: la cuota de 95.000 se repite 8 meses y corta en el nov
   assert.equal(loanHits(loan, JUN, NOV), 95000);
   assert.equal(loanHits(loan, JUL, NOV), 0);
   assert.equal(loansInMonth([loan, { ...loan, remaining_installments: 0 }], NOV, NOV), 95000);
+});
+
+const ALEMAN = {
+  name: "Préstamo alemán",
+  amortization: "aleman",
+  remaining_principal: 1200000,
+  remaining_installments: 12,
+  tem: 5,
+  cft: 79.5,
+  installment_amount: 1,
+};
+
+test("EJEMPLO alemán: capital 1.200.000, 12 cuotas, TEM 5%", () => {
+  const schedule = germanSchedule(ALEMAN);
+  assert.equal(schedule.length, 12);
+  assert.equal(schedule[0].amortization, 100000);
+  assert.equal(schedule[0].interest, 60000);
+  assert.equal(schedule[0].installment, 160000);
+  assert.equal(schedule[1].installment, 155000);
+  assert.equal(schedule[11].installment, 105000);
+  assert.deepEqual(schedule.map((row) => row.installment), [
+    160000, 155000, 150000, 145000, 140000, 135000, 130000, 125000, 120000, 115000, 110000, 105000,
+  ]);
+  assert.deepEqual(germanSchedule({ ...ALEMAN, cft: 200 }).map((row) => row.installment), schedule.map((row) => row.installment));
+});
+
+test("EJEMPLO alemán: la proyección usa la cuota del mes, y el banco solo si se ajusta", () => {
+  const fija = {
+    installment_amount: 95000,
+    remaining_installments: 8,
+  };
+  assert.equal(loanHits(ALEMAN, NOV, NOV), 160000);
+  assert.equal(loanHits(ALEMAN, DEC, NOV), 155000);
+  assert.equal(loanHits(ALEMAN, { year: 2027, month: 9 }, NOV), 105000);
+  assert.equal(loanHits(ALEMAN, { year: 2027, month: 10 }, NOV), 0);
+  assert.equal(loansInMonth([ALEMAN, fija], NOV, NOV), 255000);
+  assert.equal(loansInMonth([ALEMAN, fija], DEC, NOV), 250000);
+
+  const withBank = { ...ALEMAN, current_installment_bank: 168000, adjust_bank: false };
+  assert.equal(bankDifference(withBank).gap, 8000);
+  assert.equal(bankDifference(withBank).calculated, 160000);
+  assert.equal(loanHits(withBank, NOV, NOV), 160000);
+  assert.equal(loanHits({ ...withBank, adjust_bank: true }, NOV, NOV), 168000);
+  assert.equal(loanHits({ ...withBank, adjust_bank: true }, DEC, NOV), 163000);
+  assert.equal(loanHits({ ...withBank, adjust_bank: true }, { year: 2027, month: 9 }, NOV), 113000);
+  assert.equal(bankDifference({ ...withBank, current_installment_bank: 160000 }), null);
 });
 
 test("EJEMPLO suscripciones: mensual todos los meses y anual solo en su mes, USD aparte", () => {

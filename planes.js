@@ -1,10 +1,14 @@
 import { listRows, onData, queueChange } from "./db.js";
 import { redactLongNumbers } from "./privacy.js";
 import {
+  BANK_GAP_NOTE,
+  bankDifference,
   fromMonthKey,
+  germanSchedule,
   loanHits,
   loansInMonth,
   monthKey,
+  roundMoney,
   serviceAmountInMonth,
   serviceEstimate,
   subscriptionsInMonth,
@@ -145,6 +149,7 @@ export async function seedPlansIfEmpty() {
   if (loans.length > 0 || subscriptions.length > 0 || services.length > 0) return;
   const now = currentMonth();
   const end = shiftMonth(now, 7);
+  const endGerman = shiftMonth(now, 11);
   await queueChange("loans", "insert", stamp({
     id: crypto.randomUUID(),
     user_id: userId,
@@ -152,6 +157,22 @@ export async function seedPlansIfEmpty() {
     installment_amount: 95000,
     remaining_installments: 8,
     ends_on: `${end.year}-${String(end.month + 1).padStart(2, "0")}-01`,
+    amortization: "fija",
+    adjust_bank: false,
+  }));
+  await queueChange("loans", "insert", stamp({
+    id: crypto.randomUUID(),
+    user_id: userId,
+    name: "Préstamo alemán",
+    installment_amount: 160000,
+    remaining_installments: 12,
+    ends_on: `${endGerman.year}-${String(endGerman.month + 1).padStart(2, "0")}-01`,
+    amortization: "aleman",
+    remaining_principal: 1200000,
+    tem: 5,
+    cft: 79.5,
+    current_installment_bank: 168000,
+    adjust_bank: false,
   }));
   const charge = todayIso();
   await queueChange("subscriptions", "insert", stamp({
@@ -235,9 +256,13 @@ function renderLoans(loans) {
     const row = add(list, "li", "manage-row");
     const text = add(row, "div", "manage-copy");
     add(text, "span", "row-title", loan.name);
-    add(text, "span", "row-meta", `${money(Number(loan.installment_amount), "ARS")} · quedan ${loan.remaining_installments} · termina en ${monthYear(loan.ends_on)}`);
-    const thisMonth = loanHits(loan, month, month);
-    if (thisMonth > 0) add(text, "span", "row-meta", `Cuota de este mes ${money(thisMonth, "ARS")}`);
+    if (loan.amortization === "aleman") {
+      paintGermanLoan(text, loan);
+    } else {
+      add(text, "span", "row-meta", `${money(Number(loan.installment_amount), "ARS")} · quedan ${loan.remaining_installments} · termina en ${monthYear(loan.ends_on)}`);
+      const thisMonth = loanHits(loan, month, month);
+      if (thisMonth > 0) add(text, "span", "row-meta", `Cuota de este mes ${money(thisMonth, "ARS")}`);
+    }
     const actions = add(row, "span", "row-actions");
     const edit = add(actions, "button", "", "Editar");
     edit.type = "button";
@@ -358,19 +383,70 @@ function renderServices(services, bills) {
   fillSlot("inicio-servicios-slot", services.length > 0 && any, total, "ars");
 }
 
+function percentText(value) {
+  return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 4 }).format(Number(value));
+}
+
+function paintGermanLoan(text, loan) {
+  add(text, "span", "row-meta", `Cuota decreciente · capital ${money(Number(loan.remaining_principal), "ARS")} · TEM ${percentText(loan.tem)}% · quedan ${loan.remaining_installments} · termina en ${monthYear(loan.ends_on)}`);
+  if (loan.cft != null && loan.cft !== "") {
+    add(text, "span", "row-meta", `CFT ${percentText(loan.cft)}%. No entra en el cálculo.`);
+  }
+  const diff = bankDifference(loan);
+  if (diff) {
+    const size = money(Math.abs(diff.gap), "ARS");
+    const direction = diff.gap > 0 ? "de más" : "de menos";
+    add(text, "p", "service-note", `La cuota del banco es ${money(diff.bank, "ARS")} y el cálculo da ${money(diff.calculated, "ARS")}. Son ${size} ${direction}: ${BANK_GAP_NOTE}.`);
+  }
+  const schedule = germanSchedule(loan);
+  const gap = loan.adjust_bank && diff ? diff.gap : 0;
+  const list = add(text, "ol", "loan-schedule");
+  for (const row of schedule) {
+    const installment = roundMoney(row.installment + gap);
+    add(list, "li", "", `Cuota ${row.number}: ${money(installment, "ARS")} · capital ${money(row.amortization, "ARS")} + interés ${money(row.interest, "ARS")}`);
+  }
+}
+
+function parseAmount(value) {
+  if (String(value ?? "").trim() === "") return null;
+  return Number(String(value).replace(",", "."));
+}
+
+function syncLoanForm() {
+  const form = document.getElementById("loan-form");
+  const german = field(form, "amortization").value === "aleman";
+  form.querySelectorAll("[data-loan]").forEach((node) => {
+    node.hidden = node.dataset.loan === "aleman" ? !german : german;
+  });
+  field(form, "installment_amount").required = !german;
+  field(form, "remaining_principal").required = german;
+  field(form, "tem").required = german;
+}
+
 function startLoanEdit(loan) {
   const form = document.getElementById("loan-form");
   editingLoanId = loan.id;
   field(form, "name").value = loan.name;
-  field(form, "installment_amount").value = loan.installment_amount;
+  field(form, "amortization").value = loan.amortization === "aleman" ? "aleman" : "fija";
+  field(form, "installment_amount").value = loan.installment_amount ?? "";
+  field(form, "remaining_principal").value = loan.remaining_principal ?? "";
+  field(form, "tem").value = loan.tem ?? "";
+  field(form, "cft").value = loan.cft ?? "";
+  field(form, "current_installment_bank").value = loan.current_installment_bank ?? "";
+  field(form, "adjust_bank").checked = Boolean(loan.adjust_bank);
   field(form, "remaining_installments").value = loan.remaining_installments;
   field(form, "ends_on").value = String(loan.ends_on).slice(0, 10);
+  syncLoanForm();
   document.getElementById("loan-submit").textContent = "Guardar cambios";
 }
 
 function resetLoanForm() {
   editingLoanId = null;
-  document.getElementById("loan-form").reset();
+  const form = document.getElementById("loan-form");
+  form.reset();
+  field(form, "amortization").value = "fija";
+  field(form, "adjust_bank").checked = false;
+  syncLoanForm();
   document.getElementById("loan-submit").textContent = "Agregar préstamo";
   document.getElementById("loan-form-error").textContent = "";
 }
@@ -464,29 +540,69 @@ function wireForms() {
   const billForm = document.getElementById("bill-form");
   field(subForm, "next_charge_on").value = todayIso();
   field(billForm, "period").value = periodOf(shiftMonth(currentMonth(), -1));
+  field(loanForm, "amortization").addEventListener("change", syncLoanForm);
+  syncLoanForm();
 
   loanForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const error = document.getElementById("loan-form-error");
     error.textContent = "";
     const name = redactLongNumbers(field(loanForm, "name").value.trim());
-    const amount = Number(String(field(loanForm, "installment_amount").value).replace(",", "."));
+    const german = field(loanForm, "amortization").value === "aleman";
     const remaining = Number(field(loanForm, "remaining_installments").value);
     const endsOn = field(loanForm, "ends_on").value;
     if (!name) {
       error.textContent = "Poné un nombre.";
       return;
     }
-    if (!Number.isFinite(amount) || amount < 0) {
-      error.textContent = "La cuota no es válida.";
-      return;
-    }
-    if (!Number.isInteger(remaining) || remaining < 0) {
+    if (!Number.isInteger(remaining) || remaining < 0 || (german && remaining < 1)) {
       error.textContent = "Las cuotas restantes tienen que ser un número.";
       return;
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(endsOn)) {
       error.textContent = "Elegí la fecha de fin.";
+      return;
+    }
+    let amount = parseAmount(field(loanForm, "installment_amount").value);
+    let principal = null;
+    let tem = null;
+    let cft = null;
+    let bank = null;
+    let adjust = false;
+    if (german) {
+      principal = parseAmount(field(loanForm, "remaining_principal").value);
+      tem = parseAmount(field(loanForm, "tem").value);
+      cft = parseAmount(field(loanForm, "cft").value);
+      bank = parseAmount(field(loanForm, "current_installment_bank").value);
+      adjust = field(loanForm, "adjust_bank").checked;
+      if (!Number.isFinite(principal) || principal <= 0) {
+        error.textContent = "El capital restante no es válido.";
+        return;
+      }
+      if (!Number.isFinite(tem) || tem < 0) {
+        error.textContent = "La TEM no es válida.";
+        return;
+      }
+      if (cft != null && (!Number.isFinite(cft) || cft < 0)) {
+        error.textContent = "La CFT no es válida.";
+        return;
+      }
+      if (bank != null && (!Number.isFinite(bank) || bank < 0)) {
+        error.textContent = "La cuota del banco no es válida.";
+        return;
+      }
+      const schedule = germanSchedule({
+        remaining_principal: principal,
+        remaining_installments: remaining,
+        tem,
+      });
+      if (schedule.length === 0) {
+        error.textContent = "No se puede armar la cuota.";
+        return;
+      }
+      amount = schedule[0].installment;
+    } else if (!Number.isFinite(amount) || amount < 0) {
+      error.textContent = "La cuota no es válida.";
       return;
     }
     const existing = editingLoanId
@@ -499,6 +615,12 @@ function wireForms() {
       installment_amount: amount,
       remaining_installments: remaining,
       ends_on: endsOn,
+      amortization: german ? "aleman" : "fija",
+      remaining_principal: principal,
+      tem,
+      cft,
+      current_installment_bank: bank,
+      adjust_bank: adjust,
       created_at: existing?.created_at,
     }));
     resetLoanForm();
