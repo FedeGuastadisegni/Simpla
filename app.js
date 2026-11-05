@@ -1,5 +1,6 @@
 import { ALLOWED_EMAIL, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "./config.js";
 import { startData, useLocalDemoStore } from "./db.js";
+import { renderPlanes, seedPlansIfEmpty, setPlanUser, watchPlans } from "./planes.js";
 import { DEMO_USER, isLocalDemo, renderTarjeta, seedExampleIfEmpty, setCardUser, watchCardData } from "./tarjeta.js";
 
 const SECTIONS = {
@@ -96,6 +97,7 @@ function showApp() {
   syncNav();
   fillCalendar();
   renderTarjeta();
+  renderPlanes();
   if (!started && !isLocalDemo()) {
     started = true;
     startData(client);
@@ -144,21 +146,28 @@ window.addEventListener("online", updateLoginOffline);
 window.addEventListener("offline", updateLoginOffline);
 
 watchCardData();
+watchPlans();
 
 if (isLocalDemo()) {
   useLocalDemoStore();
   setCardUser(DEMO_USER);
+  setPlanUser(DEMO_USER);
   const flag = document.getElementById("demo-flag");
   if (flag) flag.hidden = false;
-  seedExampleIfEmpty().then(() => {
-    showApp();
-    if (!location.hash) location.hash = "#tarjeta";
-  });
+  seedExampleIfEmpty()
+    .then(() => seedPlansIfEmpty())
+    .then(() => {
+      showApp();
+      if (!location.hash) location.hash = "#tarjeta";
+    });
 } else {
   client.auth.onAuthStateChange((_event, session) => {
     // signOut adentro del callback traba el lock de supabase-js.
     setTimeout(() => {
-      if (session?.user?.id) setCardUser(session.user.id);
+      if (session?.user?.id) {
+        setCardUser(session.user.id);
+        setPlanUser(session.user.id);
+      }
       acceptSession(session);
     }, 0);
   });
