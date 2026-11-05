@@ -4,9 +4,11 @@
 // y el día de vencimiento. No se devuelve titular, domicilio, CUIT,
 // cuenta, número de tarjeta ni caja de ahorro.
 //
-// Si ya hay un consumo con la misma tarjeta, fecha, monto, moneda,
-// cuota y descripción saneada, no se inserta de nuevo. Se cuenta
-// como salteado para avisar.
+// Si ya hay un consumo de esa tarjeta con el mismo comercio, monto
+// y moneda, no se inserta de nuevo. La fecha puede ser la misma o
+// cercana (mismo mes, o hasta 21 días): un alta a mano se vincula
+// y se actualiza con la fecha y la cuota del resumen. Una cuota
+// que pasa de N/T a (N+1)/T actualiza la misma fila.
 
 import { redactLongNumbers } from "./privacy.js";
 
@@ -207,30 +209,90 @@ function cleanCharge(row, cardId) {
   };
 }
 
-function samePurchase(left, right) {
+const NEAR_DAYS = 21;
+const DAY_MS = 86400000;
+
+function merchantsMatch(left, right) {
+  const a = foldName(left);
+  const b = foldName(right);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  if (short.length < 4) return false;
+  return long.startsWith(`${short} `);
+}
+
+function sameMoney(left, right) {
   return left.card_id === right.card_id
-    && left.description === right.description
-    && left.amount === right.amount
-    && left.currency === right.currency;
+    && left.currency === right.currency
+    && roundMoney(left.amount) === roundMoney(right.amount)
+    && merchantsMatch(left.description, right.description);
+}
+
+function dateDistance(left, right) {
+  const a = Date.parse(`${String(left).slice(0, 10)}T00:00:00Z`);
+  const b = Date.parse(`${String(right).slice(0, 10)}T00:00:00Z`);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  return Math.abs(a - b) / DAY_MS;
+}
+
+function datesClose(left, right) {
+  const a = String(left).slice(0, 10);
+  const b = String(right).slice(0, 10);
+  if (a === b) return "exact";
+  if (a.slice(0, 7) === b.slice(0, 7)) return "month";
+  const distance = dateDistance(a, b);
+  if (distance != null && distance <= NEAR_DAYS) return "near";
+  return null;
+}
+
+function closest(items, incoming) {
+  return [...items].sort((a, b) => dateDistance(a.spent_on, incoming.spent_on) - dateDistance(b.spent_on, incoming.spent_on))[0];
+}
+
+function writtenByHand(stored, incoming) {
+  return stored.description !== incoming.description
+    || String(stored.spent_on).slice(0, 10) !== incoming.spent_on
+    || (stored.installment_number == null && incoming.installment_number != null);
+}
+
+const HAND_REASON = "Se vinculó con un consumo que cargaste a mano.";
+
+function exactCopy(item, incoming) {
+  return sameMoney(item, incoming)
+    && String(item.spent_on).slice(0, 10) === incoming.spent_on
+    && (item.installment_number ?? null) === (incoming.installment_number ?? null)
+    && (item.installment_count ?? null) === (incoming.installment_count ?? null);
 }
 
 // Una cuota es la misma compra cuando el resumen siguiente trae la
-// cuota de adelante. Coincide tarjeta, descripción saneada, monto,
-// moneda y cantidad de cuotas. Si el número nuevo es el guardado + 1,
-// es el paso normal. Si la serie ya existe y el número es mayor, también
-// es la misma compra (un resumen salteado). Si el guardado ya va más
-// adelante, no se retrocede. Un pago sin cuotas coincide además por fecha.
+// cuota de adelante. Coincide tarjeta, comercio, monto, moneda y
+// cantidad de cuotas. Si el número nuevo es el guardado + 1, es el
+// paso normal. Si la serie ya existe y el número es mayor, también
+// es la misma compra. Si el guardado ya va más adelante, no se
+// retrocede. Un pago sin cuotas también matchea una fecha cercana
+// o del mismo mes: eso engancha un alta a mano.
 function matchExistingCharge(incoming, pool) {
-  const candidates = pool.filter((item) => samePurchase(item, incoming));
+  const open = pool.filter((item) => !item.taken);
+  const repeat = pool.find((item) => item.taken && exactCopy(item, incoming));
+  if (repeat) return { kind: "loaded", item: repeat, reason: "Se repite en este resumen." };
+
   if (incoming.installment_number == null) {
-    const hit = candidates.find((item) => item.installment_number == null && String(item.spent_on).slice(0, 10) === incoming.spent_on);
-    if (!hit) return null;
-    return { kind: "loaded", item: hit, reason: "Mismo pago, misma fecha." };
+    const hits = open.filter((item) => item.installment_number == null && sameMoney(item, incoming) && datesClose(item.spent_on, incoming.spent_on));
+    if (!hits.length) return null;
+    const hit = closest(hits, incoming);
+    if (!writtenByHand(hit, incoming)) return { kind: "loaded", item: hit, reason: "Mismo pago, misma fecha." };
+    return { kind: "link", item: hit, manual: true, reason: HAND_REASON };
   }
+
+  const candidates = open.filter((item) => sameMoney(item, incoming));
   const series = candidates.filter((item) => item.installment_number != null && Number(item.installment_count) === incoming.installment_count);
   const exact = series.find((item) => Number(item.installment_number) === incoming.installment_number);
   if (exact) {
-    return { kind: "loaded", item: exact, reason: `La cuota ${incoming.installment_number}/${incoming.installment_count} ya está.` };
+    if (exact.description === incoming.description) {
+      return { kind: "loaded", item: exact, reason: `La cuota ${incoming.installment_number}/${incoming.installment_count} ya está.` };
+    }
+    return { kind: "link", item: exact, manual: true, reason: HAND_REASON };
   }
   const earlier = series
     .filter((item) => Number(item.installment_number) < incoming.installment_number)
@@ -238,10 +300,13 @@ function matchExistingCharge(incoming, pool) {
   if (earlier.length) {
     const current = Number(earlier[0].installment_number);
     const step = current + 1 === incoming.installment_number ? "la que sigue" : "la misma compra";
+    const manual = earlier[0].description !== incoming.description;
+    const base = `Es ${step}: estaba en ${current}/${incoming.installment_count} y pasa a ${incoming.installment_number}/${incoming.installment_count}.`;
     return {
       kind: "update",
       item: earlier[0],
-      reason: `Es ${step}: estaba en ${current}/${incoming.installment_count} y pasa a ${incoming.installment_number}/${incoming.installment_count}.`,
+      manual,
+      reason: manual ? `${HAND_REASON} ${base}` : base,
     };
   }
   const later = series
@@ -255,11 +320,16 @@ function matchExistingCharge(incoming, pool) {
       reason: `Ya está en la cuota ${current}/${incoming.installment_count}, más adelante que este resumen.`,
     };
   }
+  const loose = candidates.filter((item) => item.installment_number == null && datesClose(item.spent_on, incoming.spent_on));
+  if (loose.length) return { kind: "link", item: closest(loose, incoming), manual: true, reason: HAND_REASON };
   return null;
 }
 
-export function reviewSummary(inserts, known, ignored, updates) {
-  const loaded = updates > 0 ? `${known} ya cargados (se actualiza cuota)` : `${known} ya cargados`;
+export function reviewSummary(inserts, known, ignored, updates, links = 0) {
+  let loaded = `${known} ya cargados`;
+  if (updates > 0 && links > 0) loaded = `${known} ya cargados (${updates} cuota, ${links} a mano)`;
+  else if (updates > 0) loaded = `${known} ya cargados (se actualiza cuota)`;
+  else if (links > 0) loaded = `${known} ya cargados (${links} a mano)`;
   return `${inserts} nuevos · ${loaded} · ${ignored} ignorados`;
 }
 
@@ -276,38 +346,60 @@ export function planStatementImport(rows, cardId, existing) {
   const updates = [];
   let loaded = 0;
   let ignored = 0;
+  let links = 0;
   for (const row of rows) {
     const cleaned = cleanCharge(row, cardId);
     if (!cleaned.ok) return cleaned;
     const selected = row.selected !== false;
     const match = matchExistingCharge(cleaned.row, pool);
-    if (match && String(match.item.id).startsWith("batch-")) {
-      planned.push({ ...cleaned.row, status: "loaded", reason: "Se repite en este resumen.", selected: false, existingId: null });
+    const hadMatch = Boolean(match);
+    if (row.force_new && match && !String(match.item.id).startsWith("batch-")) {
+      const id = `batch-${planned.length}`;
+      pool.push({ ...cleaned.row, id, taken: true });
+      planned.push({ ...cleaned.row, status: "new", reason: "Lo marcaste como otro consumo.", selected: true, existingId: null, hadMatch: true });
+      inserts.push(cleaned.row);
+      continue;
+    }
+    if (match && (String(match.item.id).startsWith("batch-") || match.reason === "Se repite en este resumen.")) {
+      planned.push({ ...cleaned.row, status: "loaded", reason: "Se repite en este resumen.", selected: false, existingId: null, hadMatch: true });
       loaded += 1;
       continue;
     }
-    if (!selected && (!match || match.kind === "update")) {
-      planned.push({ ...cleaned.row, status: "ignored", reason: "Destildado.", selected: false, existingId: match?.item.id ?? null });
+    if (!selected && (!match || match.kind === "update" || match.kind === "link")) {
+      planned.push({ ...cleaned.row, status: "ignored", reason: "Destildado.", selected: false, existingId: match?.item.id ?? null, hadMatch });
       ignored += 1;
       continue;
     }
     if (!match) {
       const id = `batch-${planned.length}`;
-      pool.push({ ...cleaned.row, id });
-      planned.push({ ...cleaned.row, status: "new", reason: "No está cargado.", selected: true, existingId: null });
+      pool.push({ ...cleaned.row, id, taken: true });
+      planned.push({ ...cleaned.row, status: "new", reason: "No está cargado.", selected: true, existingId: null, hadMatch: false });
       inserts.push(cleaned.row);
       continue;
     }
-    if (match.kind === "update" && selected) {
-      planned.push({ ...cleaned.row, status: "update", reason: match.reason, selected: true, existingId: match.item.id });
-      updates.push({ ...cleaned.row, existingId: match.item.id });
+    if ((match.kind === "update" || match.kind === "link") && selected) {
+      planned.push({
+        ...cleaned.row,
+        status: match.kind,
+        reason: match.reason,
+        selected: true,
+        existingId: match.item.id,
+        hadMatch: true,
+      });
+      updates.push({ ...cleaned.row, existingId: match.item.id, manual: match.kind === "link" });
+      match.item.description = cleaned.row.description;
       match.item.installment_number = cleaned.row.installment_number;
+      match.item.installment_count = cleaned.row.installment_count;
       match.item.spent_on = cleaned.row.spent_on;
+      match.item.taken = true;
+      if (match.kind === "link") links += 1;
       continue;
     }
-    planned.push({ ...cleaned.row, status: "loaded", reason: match.reason, selected: false, existingId: match.item.id });
+    match.item.taken = true;
+    planned.push({ ...cleaned.row, status: "loaded", reason: match.reason, selected: false, existingId: match.item.id, hadMatch: true });
     loaded += 1;
   }
+  const cuotaUpdates = updates.filter((row) => !row.manual).length;
   const known = loaded + updates.length;
   return {
     ok: true,
@@ -316,6 +408,7 @@ export function planStatementImport(rows, cardId, existing) {
     updates,
     loaded,
     ignored,
-    summary: reviewSummary(inserts.length, known, ignored, updates.length),
+    links,
+    summary: reviewSummary(inserts.length, known, ignored, cuotaUpdates, links),
   };
 }

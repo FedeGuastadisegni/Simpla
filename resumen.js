@@ -64,6 +64,7 @@ function totalsOf(rows) {
 
 function statusLabel(status) {
   if (status === "update") return "Actualiza cuota";
+  if (status === "link") return "Ya cargado (manual)";
   if (status === "loaded") return "Ya cargado";
   if (status === "ignored") return "Ignorado";
   return "Nuevo";
@@ -89,6 +90,8 @@ function paintSummary() {
     node.querySelector(".pdf-reason").textContent = row.reason;
     const box = node.querySelector("[data-field=selected]");
     if (row.status === "loaded" || row.status === "ignored") box.checked = false;
+    const other = node.querySelector("[data-field=force_new]");
+    if (other) other.closest("label").hidden = !(row.hadMatch || other.checked);
   });
   const totals = totalsOf(readRows().filter((row, index) => plan.rows[index]?.status === "new"));
   summary.replaceChildren(`${plan.summary}. `);
@@ -104,6 +107,7 @@ function readRows() {
     const total = node.querySelector("[data-field=installment_count]").value.trim();
     return {
       selected: node.querySelector("[data-field=selected]").checked,
+      force_new: node.querySelector("[data-field=force_new]")?.checked === true,
       description: node.querySelector("[data-field=description]").value,
       amount: Number(String(node.querySelector("[data-field=amount]").value).replace(",", ".")),
       currency: node.querySelector("[data-field=currency]").value,
@@ -159,6 +163,12 @@ function paintLines(charges) {
     count.value = charge.installment_count ?? "";
     add(line, "p", "pdf-status is-new", "Nuevo");
     add(line, "p", "pdf-reason", "");
+    const other = add(line, "label", "check");
+    const force = add(other, "input");
+    force.type = "checkbox";
+    force.dataset.field = "force_new";
+    other.append(" Es otro consumo");
+    other.hidden = true;
     line.addEventListener("input", paintSummary);
   }
 }
@@ -316,7 +326,9 @@ async function confirmReview() {
   focusCard(cardId);
   const parts = [];
   if (plan.inserts.length) parts.push(`Guardé ${plan.inserts.length} consumos`);
-  if (plan.updates.length) parts.push(`actualicé ${plan.updates.length} cuotas`);
+  if (plan.links) parts.push(`vinculé ${plan.links} con lo que habías cargado a mano`);
+  const cuotaUpdates = plan.updates.length - (plan.links || 0);
+  if (cuotaUpdates > 0) parts.push(`actualicé ${cuotaUpdates} cuotas`);
   if (plan.loaded) parts.push(`${plan.loaded} ya estaban`);
   notice.textContent = parts.length ? `${parts.join(", ")}.` : "No había consumos para guardar.";
   review = null;
