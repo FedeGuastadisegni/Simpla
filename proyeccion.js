@@ -2,6 +2,7 @@ import { listRows, onData } from "./db.js";
 import { amountNode, putAmount } from "./money-view.js";
 import { combinedForecast, monthDelta, nextMonthChange } from "./combined.js";
 import { paidOnCard, roundMoney, upcomingPayments } from "./projections.js";
+import { ringPresentation } from "./ring-layout.js";
 
 function money(amount, currency) {
   const formatted = new Intl.NumberFormat("es-AR", {
@@ -112,8 +113,11 @@ function paintRing(month) {
   svg.replaceChildren();
   legend.replaceChildren();
   const parts = month ? CATS.map((cat) => ({ ...cat, value: cat.value(month) })).filter((part) => part.value > 0) : [];
+  const presentation = ringPresentation(parts.length);
+  ring.classList.toggle("is-single", presentation === "single");
+  ring.classList.toggle("is-multiple", presentation === "multiple");
   const total = parts.reduce((sum, part) => sum + part.value, 0);
-  if (total <= 0) {
+  if (presentation === "empty" || total <= 0) {
     ring.hidden = true;
     return;
   }
