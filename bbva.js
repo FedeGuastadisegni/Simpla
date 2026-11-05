@@ -1,4 +1,7 @@
-// Resumen BBVA Mastercard, a partir del texto ya extraído.
+// Resumen BBVA, a partir del texto ya extraído.
+// Mastercard trae la fecha como dd/mm/aaaa en la misma línea.
+// Visa trae dd-Mon-aa (Abr, Ago, Dic). En el PDF cada columna
+// llega en su propia línea; una captura suele traer la fila entera.
 // El PDF no entra acá. De este resultado solo se pueden guardar
 // consumos confirmados y, si la persona lo pide, el día de cierre
 // y el día de vencimiento. No se devuelve titular, domicilio, CUIT,
@@ -12,10 +15,29 @@
 
 import { redactLongNumbers } from "./privacy.js";
 
-const STOP = /^(impuestos y percepciones|cuotas a vencer)\b/i;
+const STOP = /^(impuestos\b|cuotas a vencer\b)/i;
+const TOTAL_CONSUMOS = /^total consumos\b/i;
 const CHARGE_START = /^(\d{2})\/(\d{2})\/(\d{4})\s+(.+)$/;
+const VISA_DATE_ONLY = /^(\d{2})-([A-Za-z]{3})-(\d{2})$/;
+const VISA_CHARGE_START = /^(\d{2})-([A-Za-z]{3})-(\d{2})\s+(.+)$/;
 const AMOUNT_AT_END = /(?:(USD|U\$S)\s*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})$/i;
+const AMOUNT_LINE = /^-?(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}$/;
+const VISA_TAIL = /^(.*?)(?:\s+(\d{6})(?!\d))?\s+(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})(?:\s+(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}))?$/;
 const QUOTA = /\bC\.(\d{1,2})\/(\d{1,2})\b/i;
+const MONTHS = {
+  jan: 1, ene: 1,
+  feb: 2,
+  mar: 3,
+  apr: 4, abr: 4,
+  may: 5,
+  jun: 6,
+  jul: 7,
+  aug: 8, ago: 8,
+  sep: 9,
+  oct: 10,
+  nov: 11,
+  dec: 12, dic: 12,
+};
 
 function roundMoney(value) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
@@ -43,6 +65,37 @@ function labeledDate(text, label) {
   const iso = isoDate(day, month, year);
   if (!iso) return null;
   return { day, iso };
+}
+
+function parseDMonYy(token) {
+  const match = VISA_DATE_ONLY.exec(String(token ?? "").trim());
+  if (!match) return null;
+  const month = MONTHS[match[2].toLowerCase()];
+  if (!month) return null;
+  const day = Number(match[1]);
+  const year = 2000 + Number(match[3]);
+  const iso = isoDate(day, month, year);
+  if (!iso) return null;
+  return { day, iso };
+}
+
+// pdf.js parte «PRÓXIMO» en «PR» / «Ó» / «XIMO …». La etiqueta
+// queda en la línea «XIMO CIERRE» y la fecha en la siguiente.
+function visaLabelDate(lines, labels) {
+  for (let i = 0; i < lines.length; i++) {
+    for (const label of labels) {
+      const same = new RegExp(`^${label}\\s*:?\\s*(\\d{2}-[A-Za-z]{3}-\\d{2})$`, "i").exec(lines[i]);
+      if (same) {
+        const parsed = parseDMonYy(same[1]);
+        if (parsed) return parsed;
+      }
+      if (new RegExp(`^${label}\\s*:?$`, "i").test(lines[i])) {
+        const parsed = parseDMonYy(lines[i + 1] || "");
+        if (parsed) return parsed;
+      }
+    }
+  }
+  return null;
 }
 
 function labeledAmount(text, label) {
@@ -108,20 +161,7 @@ export function matchCard(cards, suggestedName) {
   return loose;
 }
 
-function parseCharge(line) {
-  const start = CHARGE_START.exec(line);
-  if (!start) return null;
-  const day = Number(start[1]);
-  const month = Number(start[2]);
-  const year = Number(start[3]);
-  const spentOn = isoDate(day, month, year);
-  if (!spentOn) return null;
-  const rest = start[4].trim();
-  const amountMatch = AMOUNT_AT_END.exec(rest);
-  if (!amountMatch) return null;
-  const amount = parseArAmount(amountMatch[2]);
-  if (amount == null) return null;
-  let description = rest.slice(0, amountMatch.index).trim();
+function buildCharge(spentOn, description, amount, currency) {
   let installmentNumber = null;
   let installmentCount = null;
   const quota = QUOTA.exec(description);
@@ -131,8 +171,7 @@ function parseCharge(line) {
     if (installmentNumber < 1 || installmentCount < 1 || installmentNumber > installmentCount) return null;
     description = `${description.slice(0, quota.index)} ${description.slice(quota.index + quota[0].length)}`.replace(/\s+/g, " ").trim();
   }
-  if (!description) return null;
-  const currency = /USD|U\$S/i.test(rest) ? "USD" : "ARS";
+  if (!description || amount == null) return null;
   return {
     spent_on: spentOn,
     description,
@@ -144,12 +183,93 @@ function parseCharge(line) {
   };
 }
 
+function parseVisaCharge(line) {
+  const start = VISA_CHARGE_START.exec(line);
+  if (!start) return null;
+  const spent = parseDMonYy(`${start[1]}-${start[2]}-${start[3]}`);
+  if (!spent) return null;
+  const rest = start[4].trim();
+  if (/^su pago\b/i.test(rest) || /-\s*\d[\d.]*,\d{2}/.test(rest)) return null;
+  const tail = VISA_TAIL.exec(rest);
+  if (!tail) return null;
+  const pesos = parseArAmount(tail[3]);
+  const dolares = tail[4] ? parseArAmount(tail[4]) : null;
+  if (pesos == null) return null;
+  let amount = pesos;
+  let currency = "ARS";
+  if (dolares != null && dolares > 0 && !(pesos > 0)) {
+    amount = dolares;
+    currency = "USD";
+  }
+  if (!(amount > 0)) return null;
+  return buildCharge(spent.iso, tail[1].trim(), amount, currency);
+}
+
+function parseCharge(line) {
+  const start = CHARGE_START.exec(line);
+  if (!start) return parseVisaCharge(line);
+  const day = Number(start[1]);
+  const month = Number(start[2]);
+  const year = Number(start[3]);
+  const spentOn = isoDate(day, month, year);
+  if (!spentOn) return null;
+  const rest = start[4].trim();
+  const amountMatch = AMOUNT_AT_END.exec(rest);
+  if (!amountMatch) return null;
+  const amount = parseArAmount(amountMatch[2]);
+  if (amount == null) return null;
+  const description = rest.slice(0, amountMatch.index).trim();
+  const currency = /USD|U\$S/i.test(rest) ? "USD" : "ARS";
+  return buildCharge(spentOn, description, amount, currency);
+}
+
+// El texto del PDF trae fecha, comercio, cupón y monto en líneas
+// separadas. Las junta para pasar por el mismo parser que la captura.
+function mergeVisaTable(lines) {
+  const out = [];
+  let inTable = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^fecha$/i.test(line) || /^consumos\b/i.test(line)) inTable = true;
+    if (!inTable || !VISA_DATE_ONLY.test(line)) {
+      out.push(line);
+      continue;
+    }
+    const description = lines[i + 1];
+    if (!description || VISA_DATE_ONLY.test(description) || AMOUNT_LINE.test(description) || /^(fecha|pesos|d[oó]lares|total\b|impuestos\b)/i.test(description)) {
+      out.push(line);
+      continue;
+    }
+    let cursor = i + 2;
+    const parts = [line, description];
+    if (/^\d{6}$/.test(lines[cursor] || "")) {
+      parts.push(lines[cursor]);
+      cursor += 1;
+    }
+    if (!AMOUNT_LINE.test(lines[cursor] || "")) {
+      out.push(line);
+      continue;
+    }
+    parts.push(lines[cursor]);
+    cursor += 1;
+    if (AMOUNT_LINE.test(lines[cursor] || "")) {
+      parts.push(lines[cursor]);
+      cursor += 1;
+    }
+    out.push(parts.join(" "));
+    i = cursor - 1;
+  }
+  return out;
+}
+
 export function normalizeOcrText(raw) {
   let text = String(raw ?? "").replace(/\u00a0/g, " ");
   text = text.replace(/(\d)\s*\/\s*(?=\d)/g, "$1/");
+  text = text.replace(/(\d{2})\s*-\s*([A-Za-z]{3})\s*-\s*(\d{2})\b/g, "$1-$2-$3");
   text = text.replace(/C\s*\.\s*(\d{1,2}\/\d{1,2})/gi, "C.$1");
   text = text.replace(/[ \t]*\r?\n[ \t]*/g, "\n");
   text = text.replace(/(?<=\S)[ \t]+(?=\d{2}\/\d{2}\/\d{4}\b)/g, "\n");
+  text = text.replace(/(?<=\S)[ \t]+(?=\d{2}-[A-Za-z]{3}-\d{2}\b)/g, "\n");
   return text;
 }
 
@@ -159,14 +279,14 @@ export function parseBbvaStatement(text) {
     .map((line) => line.replace(/\s+/g, " ").trim())
     .filter(Boolean);
   const source = lines.join("\n");
-  const closing = labeledDate(source, "Fecha de cierre");
-  const due = labeledDate(source, "Fecha de vencimiento");
-  const nextClosing = labeledDate(source, "Pr[oó]ximo cierre");
-  const nextDue = labeledDate(source, "Pr[oó]ximo vencimiento");
+  const closing = labeledDate(source, "Fecha de cierre") || visaLabelDate(lines, ["CIERRE ACTUAL"]);
+  const due = labeledDate(source, "Fecha de vencimiento") || visaLabelDate(lines, ["VENCIMIENTO ACTUAL"]);
+  const nextClosing = labeledDate(source, "Pr[oó]ximo cierre") || visaLabelDate(lines, ["PR[OÓ]XIMO CIERRE", "XIMO CIERRE"]);
+  const nextDue = labeledDate(source, "Pr[oó]ximo vencimiento") || visaLabelDate(lines, ["PR[OÓ]XIMO VENCIMIENTO", "XIMO VENCIMIENTO"]);
   const charges = [];
   let stopped = false;
-  for (const line of lines) {
-    if (STOP.test(line)) {
+  for (const line of mergeVisaTable(lines)) {
+    if (STOP.test(line) || (charges.length > 0 && TOTAL_CONSUMOS.test(line))) {
       stopped = true;
       continue;
     }
