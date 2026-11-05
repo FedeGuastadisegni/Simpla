@@ -112,6 +112,32 @@ test("EJEMPLO proyección: totales de los seis meses, ARS y USD separados", () =
   assert.equal(months[0].tarjeta.ARS + months[0].tarjeta.USD === months[0].totals.ARS, false);
 });
 
+test("EJEMPLO proyección: el préstamo decreciente baja en los seis meses", () => {
+  const data = {
+    ...DATA,
+    loans: [
+      ...DATA.loans,
+      {
+        name: "Préstamo alemán",
+        amortization: "aleman",
+        remaining_principal: 1200000,
+        remaining_installments: 12,
+        tem: 5,
+        installment_amount: 1,
+        adjust_bank: false,
+      },
+    ],
+  };
+  const months = combinedForecast(data, NOV, 6);
+  const loans = [255000, 250000, 245000, 240000, 235000, 230000];
+  const totals = [620909, 500550, 511655.1, 524370.71, 538857.88, 505293.77];
+  months.forEach((month, index) => {
+    assert.equal(month.prestamos, loans[index]);
+    assert.equal(month.totals.ARS, totals[index]);
+    assert.equal(month.totals.USD, index === 0 ? 40 : 0);
+  });
+});
+
 test("EJEMPLO proyección: en diciembre baja por las cuotas que terminan", () => {
   const months = combinedForecast(DATA, NOV, 6);
   const delta = monthDelta(months[0], months[1]);
