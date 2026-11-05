@@ -1,5 +1,5 @@
 /* Shell de Simpla. Subí CACHE cuando cambien los archivos precacheados. */
-const CACHE = "simpla-shell-v7";
+const CACHE = "simpla-shell-v8";
 
 const FILES = [
   "index.html",
@@ -15,7 +15,12 @@ const FILES = [
   "combined.js",
   "backup.js",
   "proyeccion.js",
+  "bbva.js",
+  "pdf-text.js",
+  "resumen.js",
   "vendor/supabase.js",
+  "vendor/pdfjs/pdf.min.mjs",
+  "vendor/pdfjs/pdf.worker.min.mjs",
   "manifest.webmanifest",
   "favicon.ico",
   "icons/logo.png",
@@ -62,6 +67,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname.endsWith("/sw.js")) return;
+  if (url.pathname.toLowerCase().endsWith(".pdf")) return;
 
   event.respondWith(
     (async () => {

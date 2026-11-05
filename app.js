@@ -3,6 +3,7 @@ import { buildExport, planImport, TABLES } from "./backup.js";
 import { listRows, queueChange, startData, useLocalDemoStore } from "./db.js";
 import { renderPlanes, seedPlansIfEmpty, setPlanUser, watchPlans } from "./planes.js";
 import { renderProyeccion, watchProyeccion } from "./proyeccion.js";
+import { setStatementUser } from "./resumen.js";
 import { DEMO_USER, isLocalDemo, renderTarjeta, seedExampleIfEmpty, setCardUser, watchCardData } from "./tarjeta.js";
 
 const SECTIONS = {
@@ -232,6 +233,7 @@ document.getElementById("import-confirm").addEventListener("click", async () => 
 if (isLocalDemo()) {
   useLocalDemoStore();
   setCardUser(DEMO_USER);
+  setStatementUser(DEMO_USER);
   setPlanUser(DEMO_USER);
   setBackupUser(DEMO_USER);
   const flag = document.getElementById("demo-flag");
@@ -248,6 +250,7 @@ if (isLocalDemo()) {
     setTimeout(() => {
       if (session?.user?.id) {
         setCardUser(session.user.id);
+        setStatementUser(session.user.id);
         setPlanUser(session.user.id);
         setBackupUser(session.user.id);
       }
