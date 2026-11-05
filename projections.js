@@ -240,6 +240,11 @@ function withinDays(fromIso, toIso, days) {
   return diff >= 0 && diff <= days;
 }
 
+export function nextSubscriptionDate(subscription, todayIso) {
+  const parts = nextCharge(subscription, todayIso);
+  return parts ? isoOf(parts) : null;
+}
+
 function nextCharge(subscription, todayIso) {
   const start = parseIsoDate(subscription.next_charge_on);
   if (!start) return null;
@@ -259,9 +264,9 @@ export function upcomingPayments(data, todayIso) {
   const items = [];
 
   for (const subscription of data.subscriptions || []) {
-    const next = nextCharge(subscription, todayIso);
-    if (!next) continue;
-    const date = isoOf(next);
+    const date = nextSubscriptionDate(subscription, todayIso);
+    if (!date) continue;
+    const next = parseIsoDate(date);
     if (!withinDays(todayIso, date, 45)) continue;
     items.push({
       date,

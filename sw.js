@@ -1,10 +1,11 @@
 /* Shell de Simpla. Subí CACHE cuando cambien los archivos precacheados. */
-const CACHE = "simpla-shell-v16";
+const CACHE = "simpla-shell-v17";
 
 const FILES = [
   "index.html",
   "styles.css",
   "app.js",
+  "alerts.js",
   "config.js",
   "db.js",
   "card-math.js",
@@ -64,6 +65,14 @@ self.addEventListener("activate", (event) => {
       await self.clients.claim();
     })()
   );
+});
+
+self.addEventListener("periodicsync", (event) => {
+  if (event.tag !== "simpla-alerts") return;
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const client of windows) client.postMessage({ type: "simpla-alerts" });
+  })());
 });
 
 self.addEventListener("fetch", (event) => {

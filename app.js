@@ -1,8 +1,18 @@
+import {
+  dueSoon,
+  freshAlerts,
+  markShown,
+  readAlertPrefs,
+  readShown,
+  saveAlertPrefs,
+  saveShown,
+  todayIso,
+} from "./alerts.js";
 import { ALLOWED_EMAIL, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "./config.js";
 import { buildExport, planImport, TABLES } from "./backup.js";
 import { onFx, refreshFx } from "./fx.js";
 import { applyTheme, readTheme, saveTheme } from "./theme.js";
-import { listRows, queueChange, startData, useLocalDemoStore } from "./db.js";
+import { listRows, onData, queueChange, startData, useLocalDemoStore } from "./db.js";
 import { renderPlanes, seedPlansIfEmpty, setPlanUser, watchPlans } from "./planes.js";
 import { renderProyeccion, watchProyeccion } from "./proyeccion.js";
 import { setStatementUser } from "./resumen.js";
@@ -108,6 +118,7 @@ function showApp() {
   renderTarjeta();
   renderPlanes();
   renderProyeccion();
+  refreshAlerts();
   if (!started && !isLocalDemo()) {
     started = true;
     startData(client);
@@ -198,8 +209,120 @@ onFx(() => {
   renderTarjeta();
   renderPlanes();
   renderProyeccion();
+  refreshAlerts();
 });
 refreshFx();
+
+function paintDueSoon(alerts, enabled) {
+  const section = document.getElementById("due-soon");
+  const list = document.getElementById("due-soon-list");
+  if (!section || !list) return;
+  list.replaceChildren();
+  if (!enabled || alerts.length === 0) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+  for (const alert of alerts) {
+    const item = document.createElement("li");
+    item.textContent = alert.text;
+    list.append(item);
+  }
+}
+
+function permissionNote(permission) {
+  const note = document.getElementById("alerts-permission-note");
+  if (!note) return;
+  if (typeof Notification === "undefined") {
+    note.textContent = "Este navegador no muestra notificaciones. Igual ves el aviso en Inicio.";
+    return;
+  }
+  if (permission === "granted") note.textContent = "Las notificaciones están activas en este dispositivo.";
+  else note.textContent = "Sin permiso no hay aviso del sistema. Igual vas a ver “Vence pronto” en Inicio.";
+}
+
+async function registerAlertSync() {
+  try {
+    const ready = await navigator.serviceWorker?.ready;
+    if (!ready?.periodicSync) return;
+    await ready.periodicSync.register("simpla-alerts", { minInterval: 12 * 60 * 60 * 1000 });
+  } catch (error) {
+    /* el navegador puede no dejar el sync en segundo plano */
+  }
+}
+
+const notifiedToday = new Set();
+
+async function refreshAlerts() {
+  const prefs = readAlertPrefs(localStorage);
+  if (frame.hidden || !prefs.enabled) {
+    paintDueSoon([], false);
+    return;
+  }
+  const [cards, services, subscriptions] = await Promise.all([
+    listRows("cards"),
+    listRows("services"),
+    listRows("subscriptions"),
+  ]);
+  const today = todayIso(new Date());
+  const alerts = dueSoon({ cards, services, subscriptions }, today, prefs.daysAhead);
+  paintDueSoon(alerts, true);
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  const shown = readShown(localStorage);
+  const fresh = freshAlerts(alerts, shown, today).filter((alert) => !notifiedToday.has(`${today}:${alert.id}`));
+  for (const alert of fresh) {
+    try {
+      notifiedToday.add(`${today}:${alert.id}`);
+      new Notification("Simpla", { body: alert.text, tag: alert.id });
+    } catch (error) {
+      return;
+    }
+  }
+  if (fresh.length) saveShown(markShown(shown, fresh, today), localStorage);
+}
+
+function wireAlerts() {
+  const enabled = document.getElementById("alerts-enabled");
+  const days = document.getElementById("alerts-days");
+  const button = document.getElementById("alerts-permission");
+  if (!enabled || !days || !button) return;
+  const prefs = readAlertPrefs(localStorage);
+  enabled.checked = prefs.enabled;
+  days.value = String(prefs.daysAhead);
+  permissionNote(typeof Notification === "undefined" ? "denied" : Notification.permission);
+  const save = () => {
+    const nextDays = Number(days.value);
+    saveAlertPrefs({ enabled: enabled.checked, daysAhead: nextDays }, localStorage);
+    days.value = String(readAlertPrefs(localStorage).daysAhead);
+    refreshAlerts();
+  };
+  enabled.addEventListener("change", save);
+  days.addEventListener("change", save);
+  button.addEventListener("click", async () => {
+    if (typeof Notification === "undefined") {
+      permissionNote("denied");
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    permissionNote(permission);
+    if (permission === "granted") registerAlertSync();
+    refreshAlerts();
+  });
+  window.addEventListener("focus", () => {
+    if (!frame.hidden) refreshAlerts();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && !frame.hidden) refreshAlerts();
+  });
+  navigator.serviceWorker?.addEventListener("message", (event) => {
+    if (event.data?.type === "simpla-alerts" && !frame.hidden) refreshAlerts();
+  });
+  onData(() => {
+    if (!frame.hidden) refreshAlerts();
+  });
+}
+
+wireAlerts();
 
 function setBackupUser(id) {
   backupUserId = id;
