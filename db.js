@@ -18,11 +18,40 @@ const LABELS = {
 
 let databasePromise = null;
 let listening = false;
+let databaseName = "simpla";
+let enqueue = true;
+let syncHook = null;
+const listeners = new Set();
+
+export function bindSync(fn) {
+  syncHook = fn;
+}
+
+export function useLocalDemoStore() {
+  databaseName = "simpla-demo";
+  enqueue = false;
+  databasePromise = null;
+}
+
+export function onData(listener) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function emit() {
+  for (const listener of listeners) {
+    try {
+      listener();
+    } catch (error) {
+      console.error(error);
+    }
+  }
+}
 
 function openDatabase() {
   if (databasePromise) return databasePromise;
   databasePromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open("simpla", 1);
+    const request = indexedDB.open(databaseName, 1);
     request.onupgradeneeded = () => {
       const db = request.result;
       for (const table of TABLES) {
@@ -79,6 +108,10 @@ export async function pendingCount() {
   return rows.length;
 }
 
+export async function listRows(table) {
+  return readAll(table);
+}
+
 export async function queueChange(table, op, row) {
   if (!TABLES.includes(table)) throw new Error("Tabla desconocida");
   if (op !== "insert" && op !== "update" && op !== "delete") {
@@ -88,18 +121,23 @@ export async function queueChange(table, op, row) {
   if (!rowId) throw new Error("Falta el id");
 
   const db = await openDatabase();
-  const transaction = db.transaction([table, "outbox"], "readwrite");
+  const stores = enqueue ? [table, "outbox"] : [table];
+  const transaction = db.transaction(stores, "readwrite");
   const store = transaction.objectStore(table);
   if (op === "delete") store.delete(rowId);
   else store.put(row);
-  transaction.objectStore("outbox").add({
-    table,
-    op,
-    rowId,
-    row: op === "delete" ? null : row,
-    queuedAt: new Date().toISOString(),
-  });
+  if (enqueue) {
+    transaction.objectStore("outbox").add({
+      table,
+      op,
+      rowId,
+      row: op === "delete" ? null : row,
+      queuedAt: new Date().toISOString(),
+    });
+  }
   await transactionDone(transaction);
+  emit();
+  if (enqueue && syncHook) syncHook();
 }
 
 async function removeOutbox(id) {
@@ -160,6 +198,7 @@ async function pullAll(client) {
 }
 
 export async function syncNow(client) {
+  if (!enqueue) return;
   const pendingBefore = await pendingCount();
   if (!navigator.onLine) {
     renderStatus(pendingBefore ? "pending" : "offline");
@@ -170,6 +209,7 @@ export async function syncNow(client) {
     await pullAll(client);
     const pending = await pendingCount();
     renderStatus(pending ? "pending" : "synced");
+    emit();
   } catch (error) {
     const pending = await pendingCount();
     renderStatus(pending ? "pending" : "offline");
@@ -177,6 +217,9 @@ export async function syncNow(client) {
 }
 
 export function startData(client) {
+  bindSync(() => {
+    syncNow(client);
+  });
   if (!listening) {
     listening = true;
     window.addEventListener("online", () => {

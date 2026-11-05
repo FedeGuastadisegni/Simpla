@@ -138,10 +138,7 @@ a:focus-visible {
   line-height: 1.05;
 }
 
-.frame[hidden],
-.login[hidden],
-.login-error[hidden],
-.login-offline[hidden] {
+[hidden] {
   display: none !important;
 }
 
@@ -744,11 +741,252 @@ body:not(:has(.view:target)) #inicio {
   }
 }
 
+.demo-flag {
+  display: inline-block;
+  margin: 0 0 14px;
+  padding: 4px 8px;
+  background: var(--ink);
+  color: var(--cream);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+
+.chip {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.chip.is-on {
+  background: var(--teal);
+  color: var(--cream);
+  border-color: var(--teal);
+}
+
+.usd-total {
+  margin-top: 8px;
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.usd-warning {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--text);
+  border-radius: 12px;
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.drop-line {
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.row,
+.end-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  align-items: baseline;
+}
+
+.row {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.end-row {
+  margin-top: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--mint);
+  color: var(--ink);
+}
+
+.row-title,
+.usd-warning {
+  overflow-wrap: break-word;
+}
+
+.row-title {
+  font-weight: 700;
+}
+
+.row-meta {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.end-row .row-meta {
+  color: var(--ink);
+}
+
+.row-amount {
+  font-weight: 800;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.forecast {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.forecast li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.forecast-name {
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.forecast-amounts {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tile-figures {
+  display: grid;
+  gap: 2px;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+.tile-usd {
+  font-size: 0.85rem;
+}
+
+.manage-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.manage-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.manage-row > span:first-child {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.row-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.row-actions button,
+.sheet button {
+  font: inherit;
+}
+
+.row-actions button {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-weight: 700;
+  padding: 6px 0;
+}
+
+.sheet {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.sheet label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sheet input,
+.sheet select {
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+}
+
+.hint,
+.form-error {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.hint {
+  color: var(--muted);
+  margin-top: -6px;
+}
+
+.form-error:empty {
+  display: none;
+}
+
+.form-error {
+  color: var(--ink);
+  background: var(--coral);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-weight: 700;
+}
+
+.btn-primary {
+  min-height: 48px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--teal);
+  color: var(--cream);
+  font: inherit;
+  font-weight: 700;
+}
+
 @media (forced-colors: active) {
   .tile,
   .mint-bar,
   .ink-card,
-  .nav {
+  .nav,
+  .usd-warning,
+  .end-row {
     border: 1px solid CanvasText;
   }
 }

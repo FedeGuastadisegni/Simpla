@@ -1,5 +1,6 @@
 import { ALLOWED_EMAIL, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "./config.js";
-import { startData } from "./db.js";
+import { startData, useLocalDemoStore } from "./db.js";
+import { DEMO_USER, isLocalDemo, renderTarjeta, seedExampleIfEmpty, setCardUser, watchCardData } from "./tarjeta.js";
 
 const SECTIONS = {
   inicio: "Simpla",
@@ -94,7 +95,8 @@ function showApp() {
   frame.hidden = false;
   syncNav();
   fillCalendar();
-  if (!started) {
+  renderTarjeta();
+  if (!started && !isLocalDemo()) {
     started = true;
     startData(client);
   }
@@ -126,6 +128,10 @@ signInButton.addEventListener("click", async () => {
 });
 
 document.getElementById("sign-out").addEventListener("click", () => {
+  if (isLocalDemo()) {
+    location.assign(new URL("./", location.href).href);
+    return;
+  }
   privateApp = false;
   client.auth.signOut();
 });
@@ -137,12 +143,26 @@ window.addEventListener("hashchange", () => {
 window.addEventListener("online", updateLoginOffline);
 window.addEventListener("offline", updateLoginOffline);
 
-client.auth.onAuthStateChange((_event, session) => {
-  // signOut adentro del callback traba el lock de supabase-js.
-  setTimeout(() => {
-    acceptSession(session);
-  }, 0);
-});
+watchCardData();
+
+if (isLocalDemo()) {
+  useLocalDemoStore();
+  setCardUser(DEMO_USER);
+  const flag = document.getElementById("demo-flag");
+  if (flag) flag.hidden = false;
+  seedExampleIfEmpty().then(() => {
+    showApp();
+    if (!location.hash) location.hash = "#tarjeta";
+  });
+} else {
+  client.auth.onAuthStateChange((_event, session) => {
+    // signOut adentro del callback traba el lock de supabase-js.
+    setTimeout(() => {
+      if (session?.user?.id) setCardUser(session.user.id);
+      acceptSession(session);
+    }, 0);
+  });
+}
 
 updateLoginOffline();
 
