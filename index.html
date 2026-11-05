@@ -100,6 +100,7 @@
 
     <main>
       <div class="content">
+        <p id="demo-flag" class="demo-flag" hidden>Datos de ejemplo</p>
         <section class="view" id="inicio">
           <p class="sync-status" id="sync-status" role="status">
             <span class="sync-dot" aria-hidden="true"></span>
@@ -115,7 +116,7 @@
           <div class="mosaic">
             <a class="tile tile-tarjeta" href="#tarjeta">
               <span class="tile-kicker">Tarjeta</span>
-              <span class="tile-empty">Sin datos</span>
+              <span id="inicio-tarjeta-slot"><span class="tile-empty">Sin datos</span></span>
             </a>
             <a class="tile tile-prestamos" href="#prestamos">
               <span class="tile-kicker">Préstamos</span>
@@ -149,22 +150,55 @@
         <section class="view" id="tarjeta">
           <div class="split-head">
             <p class="month" data-month>Este mes</p>
-            <p class="kicker">Resumen</p>
+            <p class="kicker" id="tarjeta-due">Resumen</p>
           </div>
-          <p class="display">Sin datos</p>
-          <p class="legend">
-            <span><i class="swatch swatch-teal"></i>Cuotas</span>
-            <span><i class="swatch swatch-yellow"></i>Consumos</span>
-          </p>
-          <p class="empty">Sin cuotas ni consumos cargados.</p>
-          <article class="ink-card">
-            <p class="ink-kicker">El mes que viene</p>
-            <p>Cuando termine una cuota, el aviso va a estar acá.</p>
-          </article>
-          <h2 class="block-title">Cuotas</h2>
-          <p class="empty">No hay compras en cuotas.</p>
-          <h2 class="block-title">Consumos del mes</h2>
-          <p class="empty">No hay consumos cargados.</p>
+          <div id="card-picker" class="picker" hidden></div>
+          <div id="tarjeta-summary"></div>
+
+          <h2 class="block-title">Tarjetas</h2>
+          <ul id="card-list" class="manage-list"></ul>
+          <form id="card-form" class="sheet" novalidate>
+            <label>Nombre
+              <input name="name" type="text" maxlength="80" required autocomplete="off">
+            </label>
+            <label>Día de vencimiento
+              <input name="due_day" type="number" min="1" max="31" inputmode="numeric" required>
+            </label>
+            <p id="card-form-error" class="form-error" role="alert"></p>
+            <button id="card-submit" class="btn-primary" type="submit">Agregar tarjeta</button>
+          </form>
+
+          <h2 class="block-title">Consumos</h2>
+          <ul id="item-list" class="manage-list"></ul>
+          <form id="item-form" class="sheet" novalidate>
+            <label>Tarjeta
+              <select name="card_id" id="item-card" required></select>
+            </label>
+            <label>Descripción
+              <input name="description" type="text" maxlength="120" required autocomplete="off">
+            </label>
+            <p class="hint">Sin números de tarjeta ni de cuenta.</p>
+            <label>Monto
+              <input name="amount" type="number" min="0" step="0.01" inputmode="decimal" required>
+            </label>
+            <label>Moneda
+              <select name="currency">
+                <option value="ARS">ARS</option>
+                <option value="USD">USD</option>
+              </select>
+            </label>
+            <label>Fecha
+              <input name="spent_on" type="date" required>
+            </label>
+            <label>Cuota actual
+              <input name="installment_number" type="number" min="1" inputmode="numeric" placeholder="Vacío si es un pago">
+            </label>
+            <label>Cuotas totales
+              <input name="installment_count" type="number" min="1" inputmode="numeric" placeholder="Vacío si es un pago">
+            </label>
+            <p id="item-form-error" class="form-error" role="alert"></p>
+            <button id="item-submit" class="btn-primary" type="submit">Agregar consumo</button>
+          </form>
         </section>
 
         <section class="view" id="prestamos">
