@@ -20,10 +20,19 @@
   <link rel="stylesheet" href="styles.css">
   <style>
     html { background: #F2EFE6; }
+    html[data-theme="dark"] { background: #141311; }
     @media (prefers-color-scheme: dark) {
-      html { background: #141311; }
+      html:not([data-theme="light"]) { background: #141311; }
     }
   </style>
+  <script>
+    try {
+      var simplaTheme = localStorage.getItem("simpla-theme");
+      if (simplaTheme === "light" || simplaTheme === "dark") {
+        document.documentElement.dataset.theme = simplaTheme;
+      }
+    } catch (error) {}
+  </script>
 </head>
 <body>
   <div id="login" class="login">
@@ -44,6 +53,12 @@
           <img src="icons/logo.png" width="32" height="32" alt="Inicio">
         </a>
         <h1 id="section-title">Simpla</h1>
+        <a class="profile-link" href="#usuario" aria-label="Usuario">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="8" r="3.2"/>
+            <path d="M5 19.2c1.4-3 3.8-4.4 7-4.4s5.6 1.4 7 4.4"/>
+          </svg>
+        </a>
       </header>
 
       <nav class="nav" aria-label="Secciones">
@@ -104,18 +119,29 @@
           <span class="lbl lbl-full">Suscripciones</span>
         </a>
         </div>
-        <div class="nav-tools">
-          <button type="button" id="export-json">Exportar JSON</button>
-          <button type="button" id="import-json">Importar JSON</button>
-          <input id="import-file" type="file" accept="application/json,.json" hidden>
-        </div>
-        <button type="button" id="sign-out" class="sign-out">Salir</button>
       </nav>
     </div>
 
     <main>
       <div class="content">
         <p id="demo-flag" class="demo-flag" hidden>Datos de ejemplo</p>
+        <section class="view" id="usuario">
+          <p class="kicker">Sesión</p>
+          <p class="user-email" id="user-email">Sin cuenta de Google</p>
+          <h2 class="block-title">Tema</h2>
+          <div class="choice-row" role="radiogroup" aria-label="Tema">
+            <button type="button" data-theme-choice="auto">Automático</button>
+            <button type="button" data-theme-choice="light">Claro</button>
+            <button type="button" data-theme-choice="dark">Oscuro</button>
+          </div>
+          <h2 class="block-title">Copia</h2>
+          <div class="choice-row">
+            <button type="button" id="export-json">Exportar JSON</button>
+            <button type="button" id="import-json">Importar JSON</button>
+            <input id="import-file" type="file" accept="application/json,.json" hidden>
+          </div>
+          <button type="button" id="sign-out" class="btn-quiet">Cerrar sesión</button>
+        </section>
         <section class="view" id="inicio">
           <p class="sync-status" id="sync-status" role="status">
             <span class="sync-dot" aria-hidden="true"></span>

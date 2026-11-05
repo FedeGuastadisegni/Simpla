@@ -1,4 +1,5 @@
 import { listRows, onData } from "./db.js";
+import { amountNode, putAmount } from "./money-view.js";
 import { combinedForecast, monthDelta } from "./combined.js";
 
 function money(amount, currency) {
@@ -32,15 +33,17 @@ function add(parent, tag, className, text) {
   return node;
 }
 
-function changeLine(delta) {
-  const parts = [];
+function paintChange(node, delta) {
+  let any = false;
   for (const currency of ["ARS", "USD"]) {
     const value = delta[currency];
     if (value === 0) continue;
+    if (any) node.append(" · ");
+    any = true;
     const verb = value < 0 ? "Baja" : "Sube";
-    parts.push(`${verb} ${money(Math.abs(value), currency)}`);
+    node.append(`${verb} `, amountNode(Math.abs(value), currency));
   }
-  return parts.length ? parts.join(" · ") : "Igual que este mes";
+  if (!any) node.textContent = "Igual que este mes";
 }
 
 async function load() {
@@ -74,15 +77,16 @@ function paintInicio(months, data) {
   const later = months[1];
   display.textContent = money(now.totals.ARS, "ARS");
   usd.hidden = false;
-  usd.textContent = money(now.totals.USD, "USD");
-  next.textContent = `El mes que viene ${money(later.totals.ARS, "ARS")} · ${money(later.totals.USD, "USD")}`;
+  putAmount(usd, now.totals.USD, "USD");
+  next.replaceChildren(`El mes que viene ${money(later.totals.ARS, "ARS")} · `, amountNode(later.totals.USD, "USD"));
 }
 
-function categoryRow(parent, label, text) {
+function categoryRow(parent, label, fill) {
   const row = add(parent, "div", "forecast");
   const line = add(row, "div", "timeline-cat");
   add(line, "span", "row-title", label);
-  add(line, "span", "forecast-amounts", text);
+  const amounts = add(line, "span", "forecast-amounts");
+  fill(amounts);
   return row;
 }
 
@@ -98,19 +102,27 @@ function paintTimeline(months) {
   months.forEach((month, index) => {
     const item = add(list, "li", index === 1 ? "is-next" : "");
     add(item, "p", "timeline-month", monthTitle(month.month));
-    add(item, "p", "timeline-total", `${money(month.totals.ARS, "ARS")} · ${money(month.totals.USD, "USD")}`);
+    const total = add(item, "p", "timeline-total");
+    total.append(`${money(month.totals.ARS, "ARS")} · `, amountNode(month.totals.USD, "USD"));
     if (index === 1) {
       const delta = monthDelta(months[0], month);
-      add(item, "p", "timeline-change", changeLine(delta));
+      const change = add(item, "p", "timeline-change");
+      paintChange(change, delta);
       if (monthEnding(months[0]).length === 0) {
         add(item, "p", "service-note", "Ninguna cuota ni préstamo termina este mes.");
       } else {
-        for (const line of monthEnding(months[0])) add(item, "p", "service-note", line);
+        for (const line of monthEnding(months[0])) item.append(line);
       }
     }
-    categoryRow(item, "Tarjeta", `${money(month.tarjeta.ARS, "ARS")} · ${money(month.tarjeta.USD, "USD")}`);
-    categoryRow(item, "Préstamos", money(month.prestamos, "ARS"));
-    categoryRow(item, "Servicios", money(month.servicios, "ARS"));
+    categoryRow(item, "Tarjeta", (node) => {
+      node.append(`${money(month.tarjeta.ARS, "ARS")} · `, amountNode(month.tarjeta.USD, "USD"));
+    });
+    categoryRow(item, "Préstamos", (node) => {
+      node.textContent = money(month.prestamos, "ARS");
+    });
+    categoryRow(item, "Servicios", (node) => {
+      node.textContent = money(month.servicios, "ARS");
+    });
     for (const service of month.serviceDetails) {
       if (!service.text && service.amount == null) continue;
       const note = add(item, "p", "service-note");
@@ -120,17 +132,25 @@ function paintTimeline(months) {
         ? `${service.name}: ${service.text || "Sin facturas."}`
         : `${service.name}: ${amount}, ${mark}. ${service.text || ""}`.trim();
     }
-    categoryRow(item, "Suscripciones", `${money(month.suscripciones.ARS, "ARS")} · ${money(month.suscripciones.USD, "USD")}`);
+    categoryRow(item, "Suscripciones", (node) => {
+      node.append(`${money(month.suscripciones.ARS, "ARS")} · `, amountNode(month.suscripciones.USD, "USD"));
+    });
   });
 }
 
 function monthEnding(month) {
   const lines = [];
   for (const item of month.endingCards) {
-    lines.push(`Termina la cuota de ${item.description} (${money(Number(item.amount), item.currency === "USD" ? "USD" : "ARS")}).`);
+    const note = document.createElement("p");
+    note.className = "service-note";
+    note.append(`Termina la cuota de ${item.description} (`, amountNode(Number(item.amount), item.currency === "USD" ? "USD" : "ARS"), ").");
+    lines.push(note);
   }
   for (const loan of month.endingLoans) {
-    lines.push(`Termina el préstamo ${loan.name} (${money(Number(loan.installment_amount), "ARS")}).`);
+    const note = document.createElement("p");
+    note.className = "service-note";
+    note.textContent = `Termina el préstamo ${loan.name} (${money(Number(loan.installment_amount), "ARS")}).`;
+    lines.push(note);
   }
   return lines;
 }

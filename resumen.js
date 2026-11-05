@@ -1,4 +1,5 @@
 import { matchCard, parseBbvaStatement, planStatementImport } from "./bbva.js";
+import { amountNode } from "./money-view.js";
 import { redactLongNumbers } from "./privacy.js";
 import { listRows, queueChange } from "./db.js";
 import { textFromPdf } from "./pdf-text.js";
@@ -82,7 +83,7 @@ function paintSummary() {
     if (row.status === "loaded" || row.status === "ignored") box.checked = false;
   });
   const totals = totalsOf(readRows().filter((row, index) => plan.rows[index]?.status === "new"));
-  summary.textContent = `${plan.summary}. En los nuevos: ${money(totals.usd, "USD")} / ${money(totals.ars, "ARS")}.`;
+  summary.replaceChildren(`${plan.summary}. En los nuevos: `, amountNode(totals.usd, "USD"), ` / ${money(totals.ars, "ARS")}.`);
 }
 
 function readRows() {
@@ -221,7 +222,8 @@ async function openFile(file) {
     dates.push(`Próximo cierre ${shortDate(review.nextClosing)}, próximo vencimiento ${shortDate(review.nextDue)}. Eso no se guarda.`);
   }
   document.getElementById("pdf-dates").textContent = dates.join(" · ");
-  document.getElementById("pdf-balances").textContent = `Saldo del resumen ${money(review.balanceARS, "ARS")} y ${money(review.balanceUSD, "USD")}. No se guarda.`;
+  const balances = document.getElementById("pdf-balances");
+  balances.replaceChildren(`Saldo del resumen ${money(review.balanceARS, "ARS")} y `, amountNode(review.balanceUSD, "USD"), ". No se guarda.");
   knownCards = await listRows("cards");
   knownItems = await listRows("card_items");
   paintLines(review.charges);

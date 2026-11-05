@@ -1,4 +1,5 @@
 import { forecastMonths, monthSummary, sumByCurrency } from "./card-math.js";
+import { amountNode, putAmount } from "./money-view.js";
 import { listRows, onData, queueChange } from "./db.js";
 import { redactLongNumbers } from "./privacy.js";
 
@@ -121,7 +122,7 @@ function fillInicio(items, cards) {
   if (summary.totals.USD > 0) {
     const usd = document.createElement("span");
     usd.className = "tile-usd";
-    usd.textContent = money(summary.totals.USD, "USD");
+    putAmount(usd, summary.totals.USD, "USD");
     figures.append(usd);
   }
   slot.append(figures);
@@ -151,7 +152,7 @@ function chargeRow(parent, item, mint) {
   }
   const amount = document.createElement("p");
   amount.className = "row-amount";
-  amount.textContent = money(Number(item.amount), item.currency === "USD" ? "USD" : "ARS");
+  putAmount(amount, Number(item.amount), item.currency === "USD" ? "USD" : "ARS");
   row.append(text, amount);
   parent.append(row);
 }
@@ -175,7 +176,7 @@ function renderSummary(card, items) {
   root.append(hero);
   const usd = document.createElement("p");
   usd.className = "usd-total";
-  usd.textContent = money(summary.totals.USD, "USD");
+  putAmount(usd, summary.totals.USD, "USD");
   root.append(usd);
   if (summary.totals.USD > 0) {
     const warning = document.createElement("p");
@@ -192,7 +193,10 @@ function renderSummary(card, items) {
     line(ink, "Ninguna cuota termina este mes.", "");
   } else {
     if (drop.ARS > 0) line(ink, `El mes que viene baja ${money(drop.ARS, "ARS")}`, "drop-line");
-    if (drop.USD > 0) line(ink, `El mes que viene baja ${money(drop.USD, "USD")}`, "drop-line");
+    if (drop.USD > 0) {
+      const dropUsd = line(ink, "El mes que viene baja ", "drop-line");
+      dropUsd.append(amountNode(drop.USD, "USD"));
+    }
   }
   root.append(ink);
 
@@ -235,7 +239,7 @@ function renderSummary(card, items) {
     name.textContent = monthLabel(entry.month, "short");
     const amounts = document.createElement("span");
     amounts.className = "forecast-amounts";
-    amounts.textContent = `${money(entry.totals.ARS, "ARS")} · ${money(entry.totals.USD, "USD")}`;
+    amounts.append(`${money(entry.totals.ARS, "ARS")} · `, amountNode(entry.totals.USD, "USD"));
     row.append(name, amounts);
     list.append(row);
   }

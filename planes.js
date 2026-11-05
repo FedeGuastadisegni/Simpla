@@ -1,4 +1,5 @@
 import { listRows, onData, queueChange } from "./db.js";
+import { amountNode, putAmount } from "./money-view.js";
 import { redactLongNumbers } from "./privacy.js";
 import {
   BANK_GAP_NOTE,
@@ -105,7 +106,10 @@ function figures(parent, totals, currencyMode) {
     return;
   }
   add(box, "span", "", money(totals.ARS, "ARS"));
-  if (totals.USD > 0) add(box, "span", "tile-usd", money(totals.USD, "USD"));
+  if (totals.USD > 0) {
+    const usd = add(box, "span", "tile-usd");
+    putAmount(usd, totals.USD, "USD");
+  }
 }
 
 function forecastList(parent, months, mode) {
@@ -113,10 +117,9 @@ function forecastList(parent, months, mode) {
   for (const entry of months) {
     const row = add(list, "li");
     add(row, "span", "forecast-name", monthName(entry.month, "short"));
-    const text = mode === "ars"
-      ? money(entry.amount, "ARS")
-      : `${money(entry.totals.ARS, "ARS")} · ${money(entry.totals.USD, "USD")}`;
-    add(row, "span", "forecast-amounts", text);
+    const amounts = add(row, "span", "forecast-amounts");
+    if (mode === "ars") amounts.textContent = money(entry.amount, "ARS");
+    else amounts.append(`${money(entry.totals.ARS, "ARS")} · `, amountNode(entry.totals.USD, "USD"));
   }
 }
 
@@ -300,7 +303,9 @@ function renderSubscriptions(subscriptions) {
     const row = add(list, "li", "manage-row");
     const text = add(row, "div", "manage-copy");
     add(text, "span", "row-title", subscription.name);
-    add(text, "span", "row-meta", `${money(Number(subscription.amount), subscription.currency)} · ${subscription.frequency} · próximo cobro ${monthYear(subscription.next_charge_on)}`);
+    const meta = add(text, "span", "row-meta");
+    meta.append(amountNode(Number(subscription.amount), subscription.currency));
+    meta.append(` · ${subscription.frequency} · próximo cobro ${monthYear(subscription.next_charge_on)}`);
     const actions = add(row, "span", "row-actions");
     const edit = add(actions, "button", "", "Editar");
     edit.type = "button";
