@@ -1,6 +1,7 @@
 import { listRows, onData } from "./db.js";
 import { amountNode, putAmount } from "./money-view.js";
 import { combinedForecast, monthDelta } from "./combined.js";
+import { upcomingPayments } from "./projections.js";
 
 function money(amount, currency) {
   const formatted = new Intl.NumberFormat("es-AR", {
@@ -194,10 +195,33 @@ function monthEnding(month) {
   return lines;
 }
 
+function paintUpcoming(data) {
+  const root = document.getElementById("upcoming-list");
+  if (!root) return;
+  root.replaceChildren();
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const items = upcomingPayments(data, today);
+  if (!items.length) {
+    add(root, "p", "empty", "Todavía no hay pagos cargados.");
+    return;
+  }
+  for (const item of items) {
+    const row = add(root, "div", "pay-row");
+    add(row, "div", "pay-day", item.day || "·");
+    const copy = add(row, "div", "pay-copy");
+    add(copy, "p", "row-title", item.title);
+    add(copy, "p", "row-meta", item.meta);
+    const amount = add(row, "p", "row-amount");
+    putAmount(amount, item.amount, item.currency);
+  }
+}
+
 export async function renderProyeccion() {
   const data = await load();
   const months = combinedForecast(data, currentMonth(), 6);
   paintInicio(months, data);
+  paintUpcoming(data);
   paintTimeline(months);
 }
 

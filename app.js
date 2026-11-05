@@ -241,7 +241,7 @@ importFile.addEventListener("change", async () => {
   try {
     payload = JSON.parse(await file.text());
   } catch (error) {
-    importError.textContent = "Ese archivo no es JSON.";
+    importError.textContent = "No pude leer ese archivo. Tiene que ser un JSON exportado desde Simpla.";
     importSummary.textContent = "";
     importDialog.showModal();
     return;
@@ -289,7 +289,7 @@ if (isLocalDemo()) {
     .then(() => seedPlansIfEmpty())
     .then(() => {
       showApp();
-      if (!location.hash) location.hash = "#tarjeta";
+      if (!location.hash) location.hash = "#inicio";
     });
 } else {
   client.auth.onAuthStateChange((_event, session) => {

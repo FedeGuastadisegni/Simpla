@@ -19,7 +19,7 @@
 // de meses consecutivos, entre las últimas 6. Se aplica en cadena
 // desde la última factura. Un mes con factura propia usa ese monto.
 
-import { parseIsoDate } from "./card-math.js";
+import { monthSummary, parseIsoDate } from "./card-math.js";
 
 export function roundMoney(value) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
@@ -125,19 +125,28 @@ export function subscriptionsInMonth(subscriptions, month) {
   return totals;
 }
 
-function combinedBills(bills) {
-  const totals = new Map();
-  for (const bill of bills) {
-    if (periodKey(bill.period) == null) continue;
-    totals.set(bill.period, (totals.get(bill.period) || 0) + (Number(bill.amount) || 0));
-  }
-  return [...totals.entries()]
-    .sort((a, b) => periodKey(a[0]) - periodKey(b[0]))
-    .map(([period, amount]) => ({ period, amount }));
+function billsByPeriod(bills) {
+  const chosen = new Map();
+  bills.forEach((bill, index) => {
+    if (periodKey(bill.period) == null) return;
+    const previous = chosen.get(bill.period);
+    const stamp = String(bill.created_at || "");
+    const previousStamp = previous ? String(previous.bill.created_at || "") : "";
+    if (!previous || stamp > previousStamp || (stamp === previousStamp && index > previous.index)) {
+      chosen.set(bill.period, { bill, index });
+    }
+  });
+  return [...chosen.values()]
+    .map(({ bill }) => ({ period: bill.period, amount: Number(bill.amount) || 0 }))
+    .sort((a, b) => periodKey(a.period) - periodKey(b.period));
+}
+
+export function duplicateBill(bills, serviceId, period, editingId) {
+  return bills.find((row) => row.service_id === serviceId && row.period === period && row.id !== editingId) || null;
 }
 
 export function serviceEstimate(bills) {
-  const series = combinedBills(bills).slice(-6);
+  const series = billsByPeriod(bills).slice(-6);
   if (series.length === 0) {
     return { rate: null, billCount: 0, gaps: false, flat: false, text: null, last: null };
   }
@@ -192,7 +201,7 @@ export function serviceAmountInMonth(bills, month) {
   const estimate = serviceEstimate(bills);
   if (!estimate.last) return { amount: null, estimated: false, estimate };
   const period = `${month.year}-${String(month.month + 1).padStart(2, "0")}`;
-  const exact = combinedBills(bills).find((bill) => bill.period === period);
+  const exact = billsByPeriod(bills).find((bill) => bill.period === period);
   if (exact) return { amount: exact.amount, estimated: false, estimate };
   const target = monthKey(month.year, month.month);
   const lastKey = periodKey(estimate.last.period);
@@ -206,4 +215,125 @@ export function serviceAmountInMonth(bills, month) {
     amount = roundMoney(amount * (1 + estimate.rate));
   }
   return { amount, estimated: true, estimate };
+}
+
+function pad(value) {
+  return String(value).padStart(2, "0");
+}
+
+function isoOf(parts) {
+  const last = new Date(parts.year, parts.month + 1, 0).getDate();
+  const day = Math.min(Math.max(1, Number(parts.day) || 1), last);
+  return `${parts.year}-${pad(parts.month + 1)}-${pad(day)}`;
+}
+
+function shiftParts(parts, count) {
+  const next = fromMonthKey(monthKey(parts.year, parts.month) + count);
+  return { year: next.year, month: next.month, day: parts.day };
+}
+
+function withinDays(fromIso, toIso, days) {
+  const start = parseIsoDate(fromIso);
+  const end = parseIsoDate(toIso);
+  if (!start || !end) return false;
+  const diff = (Date.UTC(end.year, end.month, end.day) - Date.UTC(start.year, start.month, start.day)) / 86400000;
+  return diff >= 0 && diff <= days;
+}
+
+function nextCharge(subscription, todayIso) {
+  const start = parseIsoDate(subscription.next_charge_on);
+  if (!start) return null;
+  const step = subscription.frequency === "anual" ? 12 : subscription.frequency === "mensual" ? 1 : 0;
+  if (!step) return null;
+  let cursor = start;
+  for (let guard = 0; isoOf(cursor) < todayIso && guard < 240; guard += 1) {
+    cursor = shiftParts(cursor, step);
+  }
+  return cursor;
+}
+
+export function upcomingPayments(data, todayIso) {
+  const today = parseIsoDate(todayIso);
+  if (!today) return [];
+  const month = { year: today.year, month: today.month };
+  const items = [];
+
+  for (const subscription of data.subscriptions || []) {
+    const next = nextCharge(subscription, todayIso);
+    if (!next) continue;
+    const date = isoOf(next);
+    if (!withinDays(todayIso, date, 45)) continue;
+    items.push({
+      date,
+      day: pad(next.day),
+      title: subscription.name,
+      meta: subscription.frequency === "anual" ? "Suscripción anual" : "Suscripción",
+      amount: Number(subscription.amount) || 0,
+      currency: subscription.currency === "USD" ? "USD" : "ARS",
+    });
+  }
+
+  for (const card of data.cards || []) {
+    const due = Number(card.due_day);
+    if (!Number.isInteger(due) || due < 1 || due > 31) continue;
+    let pay = { year: today.year, month: today.month, day: due };
+    if (isoOf(pay) < todayIso) pay = shiftParts(pay, 1);
+    const date = isoOf(pay);
+    if (!withinDays(todayIso, date, 45)) continue;
+    const summary = monthSummary(data.cardItems || [], [card], { year: pay.year, month: pay.month });
+    if (summary.totals.ARS > 0) {
+      items.push({
+        date,
+        day: pad(due),
+        title: card.name,
+        meta: "Tarjeta",
+        amount: summary.totals.ARS,
+        currency: "ARS",
+      });
+    }
+    if (summary.totals.USD > 0) {
+      items.push({
+        date,
+        day: pad(due),
+        title: card.name,
+        meta: "Tarjeta · dólares",
+        amount: summary.totals.USD,
+        currency: "USD",
+      });
+    }
+  }
+
+  for (const loan of data.loans || []) {
+    const amount = loanHits(loan, month, month);
+    if (!(amount > 0)) continue;
+    items.push({
+      date: null,
+      day: null,
+      title: loan.name,
+      meta: "Préstamo · cuota de este mes",
+      amount,
+      currency: "ARS",
+    });
+  }
+
+  for (const service of data.services || []) {
+    const own = (data.serviceBills || []).filter((bill) => bill.service_id === service.id);
+    const result = serviceAmountInMonth(own, month);
+    if (!(result.amount > 0)) continue;
+    items.push({
+      date: null,
+      day: null,
+      title: service.name,
+      meta: result.estimated ? "Servicio · estimado" : "Servicio · facturado",
+      amount: result.amount,
+      currency: "ARS",
+    });
+  }
+
+  items.sort((a, b) => {
+    if (a.date && b.date && a.date !== b.date) return a.date < b.date ? -1 : 1;
+    if (a.date !== b.date) return a.date ? -1 : 1;
+    return String(a.title).localeCompare(String(b.title), "es");
+  });
+  return items;
 }

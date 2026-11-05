@@ -5,10 +5,12 @@ import {
   germanSchedule,
   loanHits,
   loansInMonth,
+  duplicateBill,
   serviceAmountInMonth,
   serviceEstimate,
   subscriptionHits,
   subscriptionsInMonth,
+  upcomingPayments,
 } from "../projections.js";
 
 const NOV = { year: 2026, month: 10 };
@@ -144,4 +146,55 @@ test("EJEMPLO servicios: un mes faltante no entra en el promedio", () => {
     "Hay meses sin factura: el promedio usa solo los meses consecutivos. Aumento promedio de las últimas 3 facturas: 10% por mes."
   );
   assert.equal(serviceAmountInMonth(bills, NOV).amount, 22000);
+});
+
+test("una factura repetida del mismo período no se suma al aumento", () => {
+  const bills = [
+    { period: "2026-07", amount: 100000, created_at: "2026-07-01" },
+    { period: "2026-08", amount: 110000, created_at: "2026-08-01" },
+    { period: "2026-09", amount: 121000, created_at: "2026-09-01" },
+    { period: "2026-10", amount: 133100, created_at: "2026-10-01" },
+    { period: "2026-10", amount: 133100, created_at: "2026-10-02" },
+  ];
+  const estimate = serviceEstimate(bills);
+  assert.equal(estimate.rate, 0.1);
+  assert.equal(estimate.billCount, 4);
+  assert.equal(serviceAmountInMonth(bills, { year: 2026, month: 9 }).amount, 133100);
+  assert.equal(serviceAmountInMonth(bills, NOV).amount, 146410);
+});
+
+test("si hay dos montos en el mismo período, queda el más reciente y no la suma", () => {
+  const bills = [
+    { period: "2026-10", amount: 133100, created_at: "2026-10-01" },
+    { period: "2026-10", amount: 500000, created_at: "2026-10-20" },
+  ];
+  assert.equal(serviceAmountInMonth(bills, { year: 2026, month: 9 }).amount, 500000);
+});
+
+test("duplicateBill encuentra otra factura del mismo servicio y período", () => {
+  const bills = [
+    { id: "a", service_id: "edenor", period: "2026-10" },
+    { id: "b", service_id: "edenor", period: "2026-09" },
+  ];
+  assert.equal(duplicateBill(bills, "edenor", "2026-10", null).id, "a");
+  assert.equal(duplicateBill(bills, "edenor", "2026-10", "a"), null);
+  assert.equal(duplicateBill(bills, "otro", "2026-10", null), null);
+});
+
+test("próximos pagos junta tarjeta, préstamo, servicio y suscripción", () => {
+  const items = upcomingPayments({
+    cards: [{ id: "visa", name: "Visa ejemplo", due_day: 10 }],
+    cardItems: [{ card_id: "visa", description: "Heladera", amount: 100000, currency: "ARS", spent_on: "2026-11-02", installment_number: 1, installment_count: 2 }],
+    loans: [{ name: "Préstamo personal", installment_amount: 95000, remaining_installments: 8 }],
+    services: [{ id: "luz", name: "Edenor" }],
+    serviceBills: [{ service_id: "luz", period: "2026-10", amount: 133100 }],
+    subscriptions: [{ name: "Netflix", amount: 11999, currency: "ARS", frequency: "mensual", next_charge_on: "2026-11-05" }],
+  }, "2026-11-05");
+  assert.deepEqual(items.map((item) => item.title), ["Netflix", "Visa ejemplo", "Edenor", "Préstamo personal"]);
+  assert.equal(items[0].day, "05");
+  assert.equal(items[0].meta, "Suscripción");
+  assert.equal(items[1].day, "10");
+  assert.equal(items[1].amount, 100000);
+  assert.equal(items[2].meta, "Servicio · estimado");
+  assert.equal(items[3].amount, 95000);
 });

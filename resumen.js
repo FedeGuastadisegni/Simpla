@@ -41,6 +41,14 @@ function clear(node) {
   node.replaceChildren();
 }
 
+function labeledInput(parent, text, type) {
+  const label = add(parent, "label");
+  add(label, "span", "", text);
+  const input = add(label, "input");
+  if (type) input.type = type;
+  return input;
+}
+
 function totalsOf(rows) {
   const selected = rows.filter((row) => row.selected !== false);
   let ars = 0;
@@ -56,7 +64,7 @@ function totalsOf(rows) {
 
 function statusLabel(status) {
   if (status === "update") return "Actualiza cuota";
-  if (status === "loaded") return "Ya está";
+  if (status === "loaded") return "Ya cargado";
   if (status === "ignored") return "Ignorado";
   return "Nuevo";
 }
@@ -83,7 +91,11 @@ function paintSummary() {
     if (row.status === "loaded" || row.status === "ignored") box.checked = false;
   });
   const totals = totalsOf(readRows().filter((row, index) => plan.rows[index]?.status === "new"));
-  summary.replaceChildren(`${plan.summary}. En los nuevos: `, amountNode(totals.usd, "USD"), ` / ${money(totals.ars, "ARS")}.`);
+  summary.replaceChildren(`${plan.summary}. `);
+  if (totals.usd > 0) {
+    summary.append("Dólares nuevos: ", amountNode(totals.usd, "USD"), ". El peso de al lado es el MEP; si tocás el dólar ves el valor tarjeta. ");
+  }
+  if (totals.ars > 0) summary.append(`Consumos en pesos: ${money(totals.ars, "ARS")}.`);
 }
 
 function readRows() {
@@ -113,39 +125,37 @@ function paintLines(charges) {
     box.dataset.field = "selected";
     box.checked = charge.selected !== false;
     top.append(` ${shortDate(charge.spent_on)}`);
-    const description = add(line, "input");
+    const description = labeledInput(line, "Descripción");
     description.dataset.field = "description";
     description.value = charge.description;
     description.maxLength = 120;
-    const amount = add(line, "input");
+    const amount = labeledInput(line, "Monto", "number");
     amount.dataset.field = "amount";
-    amount.type = "number";
     amount.min = "0";
     amount.step = "0.01";
     amount.value = String(charge.amount);
-    const currency = add(line, "select");
+    const currencyLabel = add(line, "label");
+    add(currencyLabel, "span", "", "Moneda");
+    const currency = add(currencyLabel, "select");
     currency.dataset.field = "currency";
     for (const code of ["ARS", "USD"]) {
       const option = add(currency, "option", "", code);
       option.value = code;
     }
     currency.value = charge.currency;
-    const date = add(line, "input");
+    const date = labeledInput(line, "Fecha", "date");
     date.dataset.field = "spent_on";
-    date.type = "date";
     date.value = charge.spent_on;
     const quotas = add(line, "div", "pdf-quotas");
-    const current = add(quotas, "input");
+    const current = labeledInput(quotas, "Cuota actual", "number");
     current.dataset.field = "installment_number";
-    current.type = "number";
     current.min = "1";
-    current.placeholder = "Cuota";
+    current.placeholder = "Vacío si es un pago";
     current.value = charge.installment_number ?? "";
-    const count = add(quotas, "input");
+    const count = labeledInput(quotas, "Cuotas totales", "number");
     count.dataset.field = "installment_count";
-    count.type = "number";
     count.min = "1";
-    count.placeholder = "De";
+    count.placeholder = "Vacío si es un pago";
     count.value = charge.installment_count ?? "";
     add(line, "p", "pdf-status is-new", "Nuevo");
     add(line, "p", "pdf-reason", "");
@@ -159,9 +169,20 @@ async function paintCardChoice() {
   const name = document.getElementById("pdf-card-name");
   const note = document.getElementById("pdf-card-note");
   name.value = matched ? matched.name : review.productName;
-  note.textContent = matched
-    ? "Ya hay una tarjeta parecida. Los consumos van ahí, con el cierre y el vencimiento de este resumen."
-    : "Al confirmar se crea la tarjeta, con el cierre y el vencimiento de este resumen.";
+  const base = matched
+    ? "Ya hay una tarjeta parecida. Los consumos van ahí."
+    : "Al confirmar se crea la tarjeta.";
+  note.textContent = `${base}${dateMismatch(matched)}`;
+}
+
+function dateMismatch(matched) {
+  if (!matched || !review) return " Se guardan el cierre y el vencimiento de este resumen.";
+  const dueDiffers = review.dueDay != null && Number(matched.due_day) !== Number(review.dueDay);
+  const closeDiffers = review.closingDay != null && Number(matched.closing_day) !== Number(review.closingDay);
+  if (!dueDiffers && !closeDiffers) return " El cierre y el vencimiento coinciden con la tarjeta guardada.";
+  const savedClose = matched.closing_day == null ? "sin día de cierre" : `cierra el ${matched.closing_day}`;
+  const pdfClose = review.closingDay == null ? "sin día de cierre" : `cierra el ${review.closingDay}`;
+  return ` El PDF vence el ${review.dueDay ?? "—"} y ${pdfClose}. La tarjeta guardada vence el ${matched.due_day} y ${savedClose}. Al confirmar quedan los del PDF.`;
 }
 
 function closeReview() {

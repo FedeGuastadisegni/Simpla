@@ -10,6 +10,7 @@ import {
   loansInMonth,
   monthKey,
   roundMoney,
+  duplicateBill,
   serviceAmountInMonth,
   serviceEstimate,
   subscriptionsInMonth,
@@ -17,14 +18,21 @@ import {
 
 const USD_WARNING = "Si pagás esta parte con pesos, se cobra una percepción del 30% (RG ARCA 5617/2024). Para evitarla, pagala con dólares propios antes del vencimiento. Si tenés débito automático, revisá que la parte en USD salga de tu caja de ahorro en dólares.";
 
-const CATEGORIES = [
+export const CATEGORIES = [
   ["luz", "Luz"],
   ["gas", "Gas"],
   ["agua", "Agua"],
+  ["municipal", "Municipal"],
+  ["arba", "ARBA"],
   ["internet", "Internet"],
-  ["celular", "Celular"],
-  ["otro", "Otro"],
+  ["linea_celular", "Línea de celular"],
+  ["seguro_auto", "Seguro auto"],
 ];
+
+const LEGACY_CATEGORIES = {
+  celular: "Línea de celular",
+  otro: "Otro",
+};
 
 let userId = null;
 let editingLoanId = null;
@@ -139,8 +147,8 @@ function fillSlot(id, hasData, totals, mode) {
   figures(slot, totals, mode);
 }
 
-function categoryLabel(code) {
-  return CATEGORIES.find(([value]) => value === code)?.[1] || code;
+export function categoryLabel(code) {
+  return CATEGORIES.find(([value]) => value === code)?.[1] || LEGACY_CATEGORIES[code] || code;
 }
 
 export async function seedPlansIfEmpty() {
@@ -358,6 +366,10 @@ function renderServices(services, bills) {
     const block = add(list, "li", "service-block");
     add(block, "p", "row-title", `${service.name} · ${categoryLabel(service.category)}`);
     if (estimate.text) add(block, "p", "service-note", estimate.text);
+    const periods = own.map((bill) => bill.period);
+    if (periods.length !== new Set(periods).size) {
+      add(block, "p", "service-note", "Hay más de una factura en el mismo período. El cálculo usa una sola, la más reciente.");
+    }
     if (result.amount == null) {
       add(block, "p", "empty", "Sin facturas.");
     } else {
@@ -395,13 +407,16 @@ function percentText(value) {
 function paintGermanLoan(text, loan) {
   add(text, "span", "row-meta", `Cuota decreciente · capital ${money(Number(loan.remaining_principal), "ARS")} · TEM ${percentText(loan.tem)}% · quedan ${loan.remaining_installments} · termina en ${monthYear(loan.ends_on)}`);
   if (loan.cft != null && loan.cft !== "") {
-    add(text, "span", "row-meta", `CFT ${percentText(loan.cft)}%. No entra en el cálculo.`);
+    add(text, "span", "row-meta", `El CFT es ${percentText(loan.cft)}%. Es una referencia del costo del préstamo: no entra en la cuota ni en los totales.`);
   }
   const diff = bankDifference(loan);
   if (diff) {
     const size = money(Math.abs(diff.gap), "ARS");
-    const direction = diff.gap > 0 ? "de más" : "de menos";
-    add(text, "p", "service-note", `La cuota del banco es ${money(diff.bank, "ARS")} y el cálculo da ${money(diff.calculated, "ARS")}. Son ${size} ${direction}: ${BANK_GAP_NOTE}.`);
+    const direction = diff.gap > 0 ? "más" : "menos";
+    const used = loan.adjust_bank
+      ? "Está sumada a cada cuota porque pediste ajustar con la cuota del banco."
+      : "No entra en los totales: es solo para comparar.";
+    add(text, "p", "service-note", `El banco dice ${money(diff.bank, "ARS")} y el cálculo da ${money(diff.calculated, "ARS")} (${size} ${direction}, ${BANK_GAP_NOTE}). ${used}`);
   }
   const schedule = germanSchedule(loan);
   const gap = loan.adjust_bank && diff ? diff.gap : 0;
@@ -482,13 +497,27 @@ function startServiceEdit(service) {
   const form = document.getElementById("service-form");
   editingServiceId = service.id;
   field(form, "name").value = service.name;
-  field(form, "category").value = service.category;
+  const select = field(form, "category");
+  select.querySelectorAll("[data-legacy]").forEach((node) => node.remove());
+  const stored = service.category === "celular" ? "linea_celular" : service.category;
+  if (![...select.options].some((option) => option.value === stored)) {
+    const option = document.createElement("option");
+    option.value = service.category;
+    option.textContent = categoryLabel(service.category);
+    option.dataset.legacy = "1";
+    select.append(option);
+    select.value = service.category;
+  } else {
+    select.value = stored;
+  }
   document.getElementById("service-submit").textContent = "Guardar cambios";
 }
 
 function resetServiceForm() {
   editingServiceId = null;
-  document.getElementById("service-form").reset();
+  const form = document.getElementById("service-form");
+  form.reset();
+  field(form, "category").querySelectorAll("[data-legacy]").forEach((node) => node.remove());
   document.getElementById("service-submit").textContent = "Agregar servicio";
   document.getElementById("service-form-error").textContent = "";
 }
@@ -554,20 +583,13 @@ function wireForms() {
     error.textContent = "";
     const name = redactLongNumbers(field(loanForm, "name").value.trim());
     const german = field(loanForm, "amortization").value === "aleman";
-    const remaining = Number(field(loanForm, "remaining_installments").value);
+    const remainingRaw = String(field(loanForm, "remaining_installments").value).trim();
+    const remaining = Number(remainingRaw);
     const endsOn = field(loanForm, "ends_on").value;
-    if (!name) {
-      error.textContent = "Poné un nombre.";
-      return;
-    }
-    if (!Number.isInteger(remaining) || remaining < 0 || (german && remaining < 1)) {
-      error.textContent = "Las cuotas restantes tienen que ser un número.";
-      return;
-    }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(endsOn)) {
-      error.textContent = "Elegí la fecha de fin.";
-      return;
-    }
+    const missing = [];
+    if (!name) missing.push("nombre");
+    if (remainingRaw === "") missing.push("cuotas restantes");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(endsOn)) missing.push("fecha de fin");
     let amount = parseAmount(field(loanForm, "installment_amount").value);
     let principal = null;
     let tem = null;
@@ -575,11 +597,19 @@ function wireForms() {
     let bank = null;
     let adjust = false;
     if (german) {
-      principal = parseAmount(field(loanForm, "remaining_principal").value);
-      tem = parseAmount(field(loanForm, "tem").value);
+      const principalRaw = String(field(loanForm, "remaining_principal").value).trim();
+      const temRaw = String(field(loanForm, "tem").value).trim();
+      principal = parseAmount(principalRaw);
+      tem = parseAmount(temRaw);
       cft = parseAmount(field(loanForm, "cft").value);
       bank = parseAmount(field(loanForm, "current_installment_bank").value);
       adjust = field(loanForm, "adjust_bank").checked;
+      if (principalRaw === "") missing.push("capital restante");
+      if (temRaw === "") missing.push("TEM");
+      if (missing.length) {
+        error.textContent = `Completá: ${missing.join(", ")}.`;
+        return;
+      }
       if (!Number.isFinite(principal) || principal <= 0) {
         error.textContent = "El capital restante no es válido.";
         return;
@@ -588,14 +618,30 @@ function wireForms() {
         error.textContent = "La TEM no es válida.";
         return;
       }
+      if (!Number.isInteger(remaining) || remaining < 1) {
+        error.textContent = "Las cuotas restantes tienen que ser un número entero mayor a cero.";
+        return;
+      }
       if (cft != null && (!Number.isFinite(cft) || cft < 0)) {
-        error.textContent = "La CFT no es válida.";
+        error.textContent = "La CFT no es válida. Si no la tenés, dejala vacía: no entra en la cuota.";
         return;
       }
       if (bank != null && (!Number.isFinite(bank) || bank < 0)) {
-        error.textContent = "La cuota del banco no es válida.";
+        error.textContent = "La cuota del banco no es válida. Si no la tenés, dejala vacía.";
         return;
       }
+    } else {
+      if (String(field(loanForm, "installment_amount").value).trim() === "") missing.push("cuota");
+      if (missing.length) {
+        error.textContent = `Completá: ${missing.join(", ")}.`;
+        return;
+      }
+      if (!Number.isInteger(remaining) || remaining < 0) {
+        error.textContent = "Las cuotas restantes tienen que ser un número entero.";
+        return;
+      }
+    }
+    if (german) {
       const schedule = germanSchedule({
         remaining_principal: principal,
         remaining_installments: remaining,
@@ -680,13 +726,14 @@ function wireForms() {
       error.textContent = "Poné un nombre.";
       return;
     }
-    if (!CATEGORIES.some(([value]) => value === category)) {
-      error.textContent = "Elegí una categoría.";
-      return;
-    }
     const existing = editingServiceId
       ? (await listRows("services")).find((row) => row.id === editingServiceId)
       : null;
+    const known = CATEGORIES.some(([value]) => value === category);
+    if (!known && !(existing && existing.category === category)) {
+      error.textContent = "Elegí una categoría.";
+      return;
+    }
     await queueChange("services", editingServiceId ? "update" : "insert", stamp({
       id: editingServiceId || crypto.randomUUID(),
       user_id: userId,
@@ -716,9 +763,12 @@ function wireForms() {
       error.textContent = "El monto no es válido.";
       return;
     }
-    const existing = editingBillId
-      ? (await listRows("service_bills")).find((row) => row.id === editingBillId)
-      : null;
+    const bills = await listRows("service_bills");
+    if (duplicateBill(bills, serviceId, period, editingBillId)) {
+      error.textContent = "Ya hay una factura de este servicio para ese período. Editala si querés cambiar el monto.";
+      return;
+    }
+    const existing = editingBillId ? bills.find((row) => row.id === editingBillId) : null;
     await queueChange("service_bills", editingBillId ? "update" : "insert", stamp({
       id: editingBillId || crypto.randomUUID(),
       user_id: userId,
