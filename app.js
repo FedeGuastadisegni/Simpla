@@ -1,5 +1,7 @@
 import { ALLOWED_EMAIL, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "./config.js";
 import { buildExport, planImport, TABLES } from "./backup.js";
+import { onFx, refreshFx } from "./fx.js";
+import { applyTheme, readTheme, saveTheme } from "./theme.js";
 import { listRows, queueChange, startData, useLocalDemoStore } from "./db.js";
 import { renderPlanes, seedPlansIfEmpty, setPlanUser, watchPlans } from "./planes.js";
 import { renderProyeccion, watchProyeccion } from "./proyeccion.js";
@@ -13,6 +15,7 @@ const SECTIONS = {
   servicios: "Servicios",
   suscripciones: "Suscripciones",
   proyeccion: "Proyección",
+  usuario: "Usuario",
 };
 
 const links = document.querySelectorAll(".nav a");
@@ -123,6 +126,8 @@ async function acceptSession(session) {
     return;
   }
   privateApp = false;
+  const emailNode = document.getElementById("user-email");
+  if (emailNode) emailNode.textContent = session.user.email;
   showApp();
 }
 
@@ -155,6 +160,33 @@ window.addEventListener("offline", updateLoginOffline);
 watchCardData();
 watchPlans();
 watchProyeccion();
+
+applyTheme(readTheme(localStorage), document.documentElement);
+document.querySelectorAll("[data-theme-choice]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const choice = button.dataset.themeChoice;
+    saveTheme(choice, localStorage);
+    applyTheme(choice, document.documentElement);
+    markTheme(choice);
+  });
+});
+markTheme(readTheme(localStorage));
+
+function markTheme(choice) {
+  document.querySelectorAll("[data-theme-choice]").forEach((button) => {
+    const on = button.dataset.themeChoice === choice;
+    button.classList.toggle("is-on", on);
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+
+onFx(() => {
+  if (frame.hidden) return;
+  renderTarjeta();
+  renderPlanes();
+  renderProyeccion();
+});
+refreshFx();
 
 function setBackupUser(id) {
   backupUserId = id;
@@ -236,6 +268,8 @@ if (isLocalDemo()) {
   setStatementUser(DEMO_USER);
   setPlanUser(DEMO_USER);
   setBackupUser(DEMO_USER);
+  const emailNode = document.getElementById("user-email");
+  if (emailNode) emailNode.textContent = "Modo de ejemplo, sin cuenta de Google";
   const flag = document.getElementById("demo-flag");
   if (flag) flag.hidden = false;
   seedExampleIfEmpty()
