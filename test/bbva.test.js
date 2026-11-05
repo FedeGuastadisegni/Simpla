@@ -154,6 +154,141 @@ test("EJEMPLO BBVA: la cuota siguiente actualiza el mismo consumo", () => {
   assert.equal(older.rows[0].reason.includes("más adelante"), true);
 });
 
+test("un consumo a mano se vincula y no se duplica", () => {
+  const stored = [{
+    id: "mano",
+    card_id: "card-1",
+    description: "Farmacia",
+    amount: 3450.5,
+    currency: "ARS",
+    spent_on: "2026-10-08",
+    installment_number: null,
+    installment_count: null,
+  }];
+  const plan = planStatementImport([{
+    selected: true,
+    description: "FARMACIA EJEMPLO",
+    amount: 3450.5,
+    currency: "ARS",
+    spent_on: "2026-10-12",
+    installment_number: null,
+    installment_count: null,
+  }], "card-1", stored);
+  assert.equal(plan.inserts.length, 0);
+  assert.equal(plan.links, 1);
+  assert.equal(plan.updates[0].existingId, "mano");
+  assert.equal(plan.updates[0].spent_on, "2026-10-12");
+  assert.equal(plan.updates[0].description, "FARMACIA EJEMPLO");
+  assert.equal(plan.rows[0].status, "link");
+  assert.equal(plan.rows[0].reason, "Se vinculó con un consumo que cargaste a mano.");
+  assert.equal(plan.summary.includes("1 a mano"), true);
+});
+
+test("una cuota a mano pasa a la siguiente sin alta nueva", () => {
+  const stored = [{
+    id: "swiss",
+    card_id: "card-1",
+    description: "Swiss Medical",
+    amount: 25015.95,
+    currency: "ARS",
+    spent_on: "2026-09-03",
+    installment_number: 5,
+    installment_count: 12,
+  }];
+  const plan = planStatementImport([{
+    selected: true,
+    description: "SWISS MEDICAL EJEMPLO",
+    amount: 25015.95,
+    currency: "ARS",
+    spent_on: "2026-10-03",
+    installment_number: 6,
+    installment_count: 12,
+  }], "card-1", stored);
+  assert.equal(plan.inserts.length, 0);
+  assert.equal(plan.updates.length, 1);
+  assert.equal(plan.updates[0].existingId, "swiss");
+  assert.equal(plan.updates[0].installment_number, 6);
+  assert.equal(plan.rows[0].status, "update");
+  assert.equal(plan.rows[0].reason.includes("cargaste a mano"), true);
+});
+
+test("otra moneda o otro comercio no matchean", () => {
+  const stored = [{
+    id: "mano",
+    card_id: "card-1",
+    description: "Farmacia",
+    amount: 3450.5,
+    currency: "ARS",
+    spent_on: "2026-10-08",
+    installment_number: null,
+    installment_count: null,
+  }];
+  const otherCurrency = planStatementImport([{
+    selected: true,
+    description: "FARMACIA EJEMPLO",
+    amount: 3450.5,
+    currency: "USD",
+    spent_on: "2026-10-12",
+    installment_number: null,
+    installment_count: null,
+  }], "card-1", stored);
+  assert.equal(otherCurrency.inserts.length, 1);
+  assert.equal(otherCurrency.links, 0);
+  assert.equal(otherCurrency.rows[0].status, "new");
+
+  const otherShop = planStatementImport([{
+    selected: true,
+    description: "LIBRERIA NUEVA",
+    amount: 3450.5,
+    currency: "ARS",
+    spent_on: "2026-10-12",
+    installment_number: null,
+    installment_count: null,
+  }], "card-1", stored);
+  assert.equal(otherShop.inserts.length, 1);
+  assert.equal(otherShop.rows[0].status, "new");
+
+  const farDate = planStatementImport([{
+    selected: true,
+    description: "FARMACIA EJEMPLO",
+    amount: 3450.5,
+    currency: "ARS",
+    spent_on: "2026-07-01",
+    installment_number: null,
+    installment_count: null,
+  }], "card-1", stored);
+  assert.equal(farDate.inserts.length, 1);
+  assert.equal(farDate.rows[0].status, "new");
+});
+
+test("se puede forzar un alta si el vínculo está mal", () => {
+  const stored = [{
+    id: "mano",
+    card_id: "card-1",
+    description: "Farmacia",
+    amount: 3450.5,
+    currency: "ARS",
+    spent_on: "2026-10-08",
+    installment_number: null,
+    installment_count: null,
+  }];
+  const line = {
+    selected: true,
+    force_new: true,
+    description: "FARMACIA EJEMPLO",
+    amount: 3450.5,
+    currency: "ARS",
+    spent_on: "2026-10-12",
+    installment_number: null,
+    installment_count: null,
+  };
+  const plan = planStatementImport([line], "card-1", stored);
+  assert.equal(plan.inserts.length, 1);
+  assert.equal(plan.updates.length, 0);
+  assert.equal(plan.rows[0].status, "new");
+  assert.equal(plan.rows[0].hadMatch, true);
+});
+
 test("EJEMPLO BBVA: reutiliza una tarjeta parecida y no usa una Visa distinta", () => {
   const cards = [
     { id: "visa", name: "Visa ejemplo" },

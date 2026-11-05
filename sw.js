@@ -1,5 +1,5 @@
 /* Shell de Simpla. Subí CACHE cuando cambien los archivos precacheados. */
-const CACHE = "simpla-shell-v14";
+const CACHE = "simpla-shell-v15";
 
 const FILES = [
   "index.html",

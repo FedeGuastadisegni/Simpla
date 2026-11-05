@@ -1249,6 +1249,10 @@ dialog .row-actions button {
   font-weight: 600;
 }
 
+.pdf-status.is-link {
+  color: var(--accent);
+}
+
 .pdf-reason {
   margin: 0;
   font-size: 0.85rem;
