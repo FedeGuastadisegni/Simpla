@@ -11,6 +11,7 @@ import {
   roundMoney,
   serviceAmountInMonth,
   serviceEstimate,
+  subscriptionHits,
   subscriptionsInMonth,
 } from "./projections.js";
 
@@ -42,7 +43,12 @@ export function combinedMonth(data, month, reference) {
   const totals = empty();
   totals.ARS = roundMoney(cards.totals.ARS + loans + serviceARS + subscriptions.ARS);
   totals.USD = roundMoney(cards.totals.USD + subscriptions.USD);
-  const endingLoans = data.loans.filter((loan) => loanHits(loan, month, reference) > 0 && loanHits(loan, fromMonthKey(monthKey(month.year, month.month) + 1), reference) === 0);
+  const later = fromMonthKey(monthKey(month.year, month.month) + 1);
+  const endingLoans = [];
+  for (const loan of data.loans) {
+    const now = loanHits(loan, month, reference);
+    if (now > 0 && loanHits(loan, later, reference) === 0) endingLoans.push({ ...loan, endingAmount: now });
+  }
   return {
     month,
     totals,
@@ -66,4 +72,74 @@ export function monthDelta(current, next) {
     ARS: roundMoney(next.totals.ARS - current.totals.ARS),
     USD: roundMoney(next.totals.USD - current.totals.USD),
   };
+}
+
+function currencyOf(item) {
+  return item.currency === "USD" ? "USD" : "ARS";
+}
+
+function noHistory(service) {
+  return !service?.text || /falta historial/i.test(service.text);
+}
+
+export function nextMonthChange(current, next, subscriptions = []) {
+  const ending = [];
+  const drop = { ARS: 0, USD: 0 };
+  for (const item of current.endingCards || []) {
+    const currency = currencyOf(item);
+    const amount = Number(item.amount) || 0;
+    ending.push({ name: item.description, amount, currency, kind: "cuota" });
+    drop[currency] += amount;
+  }
+  for (const loan of current.endingLoans || []) {
+    const amount = Number(loan.endingAmount ?? loan.installment_amount) || 0;
+    ending.push({ name: loan.name, amount, currency: "ARS", kind: "prestamo" });
+    drop.ARS += amount;
+  }
+  drop.ARS = roundMoney(drop.ARS);
+  drop.USD = roundMoney(drop.USD);
+
+  const nowById = new Map((current.serviceDetails || []).map((service) => [service.id, service]));
+  const services = [];
+  for (const later of next.serviceDetails || []) {
+    const now = nowById.get(later.id);
+    const nowAmount = now?.amount ?? null;
+    const nextAmount = later.amount ?? null;
+    if (nowAmount == null && nextAmount == null) {
+      services.push({ id: later.id, name: later.name, kind: "sin-datos", now: null, next: null, text: later.text || "Sin facturas." });
+      continue;
+    }
+    if (noHistory(later)) {
+      services.push({ id: later.id, name: later.name, kind: "sin-historial", now: nowAmount, next: nextAmount, text: later.text || "Falta historial para estimar el aumento." });
+      continue;
+    }
+    if (nowAmount != null && nextAmount != null && roundMoney(nextAmount) !== roundMoney(nowAmount)) {
+      services.push({
+        id: later.id,
+        name: later.name,
+        kind: nextAmount > nowAmount ? "sube" : "baja",
+        now: nowAmount,
+        next: nextAmount,
+        text: later.text || "",
+      });
+    }
+  }
+
+  const due = (subscriptions || [])
+    .filter((subscription) => subscriptionHits(subscription, next.month))
+    .map((subscription) => ({
+      name: subscription.name,
+      amount: Number(subscription.amount) || 0,
+      currency: subscription.currency === "USD" ? "USD" : "ARS",
+      frequency: subscription.frequency,
+    }));
+
+  const delta = monthDelta(current, next);
+  const quiet = ending.length === 0
+    && services.length === 0
+    && due.length === 0
+    && delta.ARS === 0
+    && delta.USD === 0;
+
+  return { ending, drop, services, subscriptions: due, delta, quiet };
 }

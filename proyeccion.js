@@ -1,6 +1,6 @@
 import { listRows, onData } from "./db.js";
 import { amountNode, putAmount } from "./money-view.js";
-import { combinedForecast, monthDelta } from "./combined.js";
+import { combinedForecast, monthDelta, nextMonthChange } from "./combined.js";
 import { upcomingPayments } from "./projections.js";
 
 function money(amount, currency) {
@@ -195,6 +195,115 @@ function monthEnding(month) {
   return lines;
 }
 
+function paintAmount(parent, amount, currency) {
+  parent.append(amountNode(amount, currency));
+}
+
+function paintNextChange(months, data) {
+  const root = document.getElementById("next-change-body");
+  if (!root) return;
+  root.replaceChildren();
+  if (!months || months.length < 2) {
+    add(root, "p", "empty", "Sin cambios fuertes el mes que viene.");
+    return;
+  }
+  const change = nextMonthChange(months[0], months[1], data.subscriptions);
+  if (change.quiet) {
+    add(root, "p", "empty", "Sin cambios fuertes el mes que viene.");
+    return;
+  }
+
+  add(root, "h3", "change-label", "Cuotas que terminan");
+  if (!change.ending.length) {
+    add(root, "p", "service-note", "Ninguna cuota termina este mes.");
+  } else {
+    for (const item of change.ending) {
+      const line = add(root, "p", "change-line");
+      line.append(`${item.name} · ${item.kind === "prestamo" ? "Préstamo" : "Tarjeta"} · `);
+      paintAmount(line, item.amount, item.currency);
+    }
+    if (change.drop.ARS > 0 || change.drop.USD > 0) {
+      const drop = add(root, "p", "service-note");
+      drop.append("Por estas cuotas, el mes que viene baja ");
+      const parts = [];
+      if (change.drop.ARS > 0) parts.push(["ARS", change.drop.ARS]);
+      if (change.drop.USD > 0) parts.push(["USD", change.drop.USD]);
+      parts.forEach(([currency, amount], index) => {
+        if (index > 0) drop.append(" y ");
+        paintAmount(drop, amount, currency);
+      });
+      drop.append(".");
+    }
+  }
+
+  add(root, "h3", "change-label", "Servicios");
+  if (!change.services.length) {
+    add(root, "p", "service-note", "Ningún servicio cambia el mes que viene.");
+  } else {
+    for (const service of change.services) {
+      const line = add(root, "p", "change-line");
+      if (service.kind === "sin-datos") {
+        line.textContent = `${service.name}: ${service.text}`;
+        continue;
+      }
+      if (service.kind === "sin-historial") {
+        line.append(`${service.name}: ${service.text} `);
+        if (service.next != null) {
+          line.append("Se mantiene en ");
+          paintAmount(line, service.next, "ARS");
+          line.append(".");
+        }
+        continue;
+      }
+      const verb = service.kind === "baja" ? "baja a" : "sube a";
+      line.append(`${service.name}: este mes `);
+      paintAmount(line, service.now, "ARS");
+      line.append(`, el que viene ${verb} `);
+      paintAmount(line, service.next, "ARS");
+      line.append(".");
+      if (service.text) add(root, "p", "service-note", service.text);
+    }
+  }
+
+  add(root, "h3", "change-label", "Suscripciones");
+  if (!change.subscriptions.length) {
+    add(root, "p", "service-note", "Ninguna suscripción cobra el mes que viene.");
+  } else {
+    const pesos = change.subscriptions.filter((item) => item.currency === "ARS");
+    const dolares = change.subscriptions.filter((item) => item.currency === "USD");
+    for (const group of [pesos, dolares]) {
+      for (const item of group) {
+        const line = add(root, "p", "change-line");
+        const when = item.frequency === "anual" ? "anual" : "mensual";
+        line.append(`${item.name} · ${when} · `);
+        paintAmount(line, item.amount, item.currency);
+      }
+    }
+  }
+
+  const net = add(root, "p", "change-net");
+  if (change.delta.ARS === 0 && change.delta.USD === 0) {
+    net.textContent = "El mes que viene queda igual.";
+  } else {
+    if (change.delta.ARS < 0) {
+      net.append("El mes que viene baja aprox. ");
+      paintAmount(net, Math.abs(change.delta.ARS), "ARS");
+      net.append(".");
+    } else if (change.delta.ARS > 0) {
+      net.append("El mes que viene sube aprox. ");
+      paintAmount(net, change.delta.ARS, "ARS");
+      net.append(".");
+    } else {
+      net.append("En pesos queda igual.");
+    }
+    if (change.delta.USD !== 0) {
+      net.append(change.delta.USD < 0 ? " En dólares baja " : " En dólares sube ");
+      paintAmount(net, Math.abs(change.delta.USD), "USD");
+      net.append(".");
+    }
+  }
+}
+
 function paintUpcoming(data) {
   const root = document.getElementById("upcoming-list");
   if (!root) return;
@@ -222,6 +331,7 @@ export async function renderProyeccion() {
   const months = combinedForecast(data, currentMonth(), 6);
   paintInicio(months, data);
   paintUpcoming(data);
+  paintNextChange(months, data);
   paintTimeline(months);
 }
 

@@ -1307,6 +1307,29 @@ dialog .row-actions button {
   min-width: 0;
 }
 
+.change-label {
+  margin: 14px 0 4px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.change-label:first-child {
+  margin-top: 0;
+}
+
+.change-line {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.change-net {
+  margin-top: 14px;
+  font-family: var(--display);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
 .minor-form {
   margin: 8px 0 18px;
 }
