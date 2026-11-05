@@ -1,5 +1,5 @@
 /* Shell de Simpla. Subí CACHE cuando cambien los archivos precacheados. */
-const CACHE = "simpla-shell-v4";
+const CACHE = "simpla-shell-v5";
 
 const FILES = [
   "index.html",
@@ -8,8 +8,10 @@ const FILES = [
   "config.js",
   "db.js",
   "card-math.js",
+  "projections.js",
   "privacy.js",
   "tarjeta.js",
+  "planes.js",
   "vendor/supabase.js",
   "manifest.webmanifest",
   "favicon.ico",

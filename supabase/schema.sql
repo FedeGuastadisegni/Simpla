@@ -115,6 +115,7 @@ comment on column public.card_items.currency is
 create table if not exists public.loans (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  name text not null,
   installment_amount numeric(14, 2) not null check (installment_amount >= 0),
   remaining_installments integer not null check (remaining_installments >= 0),
   ends_on date not null,
@@ -149,6 +150,7 @@ create table if not exists public.service_bills (
 create table if not exists public.subscriptions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  name text not null,
   amount numeric(14, 2) not null check (amount >= 0),
   currency text not null check (currency in ('ARS', 'USD')),
   frequency text not null check (frequency in ('mensual', 'anual')),

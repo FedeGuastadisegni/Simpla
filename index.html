@@ -120,15 +120,15 @@
             </a>
             <a class="tile tile-prestamos" href="#prestamos">
               <span class="tile-kicker">Préstamos</span>
-              <span class="tile-empty">Sin datos</span>
+              <span id="inicio-prestamos-slot"><span class="tile-empty">Sin datos</span></span>
             </a>
             <a class="tile tile-servicios" href="#servicios">
               <span class="tile-kicker">Servicios</span>
-              <span class="tile-empty">Sin datos</span>
+              <span id="inicio-servicios-slot"><span class="tile-empty">Sin datos</span></span>
             </a>
             <a class="tile tile-suscripciones" href="#suscripciones">
               <span class="tile-kicker">Suscripciones</span>
-              <span class="tile-empty">Sin datos</span>
+              <span id="inicio-suscripciones-slot"><span class="tile-empty">Sin datos</span></span>
             </a>
           </div>
 
@@ -206,11 +206,25 @@
             <p class="month" data-month>Este mes</p>
             <p class="kicker">Cuotas</p>
           </div>
-          <article class="tile tile-prestamos tile-hero">
-            <p class="tile-kicker">Préstamos</p>
-            <p class="tile-empty">Sin datos</p>
-          </article>
-          <p class="lede">Acá van a estar las cuotas y lo que falta pagar.</p>
+          <div id="loan-summary"></div>
+          <h2 class="block-title">Préstamos</h2>
+          <ul id="loan-list" class="manage-list"></ul>
+          <form id="loan-form" class="sheet" novalidate>
+            <label>Nombre
+              <input name="name" type="text" maxlength="80" required autocomplete="off">
+            </label>
+            <label>Cuota
+              <input name="installment_amount" type="number" min="0" step="0.01" inputmode="decimal" required>
+            </label>
+            <label>Cuotas restantes
+              <input name="remaining_installments" type="number" min="0" step="1" inputmode="numeric" required>
+            </label>
+            <label>Fecha de fin
+              <input name="ends_on" type="date" required>
+            </label>
+            <p id="loan-form-error" class="form-error" role="alert"></p>
+            <button id="loan-submit" class="btn-primary" type="submit">Agregar préstamo</button>
+          </form>
         </section>
 
         <section class="view" id="servicios">
@@ -218,11 +232,40 @@
             <p class="month" data-month>Este mes</p>
             <p class="kicker">Facturas</p>
           </div>
-          <article class="tile tile-servicios tile-hero">
-            <p class="tile-kicker">Servicios</p>
-            <p class="tile-empty">Sin datos</p>
-          </article>
-          <p class="lede">Acá van a estar la luz, el gas y el resto, con el aumento estimado.</p>
+          <div id="service-summary"></div>
+          <h2 class="block-title">Servicios</h2>
+          <ul id="service-list" class="manage-list"></ul>
+          <form id="service-form" class="sheet" novalidate>
+            <label>Nombre
+              <input name="name" type="text" maxlength="80" required autocomplete="off">
+            </label>
+            <label>Categoría
+              <select name="category" required>
+                <option value="luz">Luz</option>
+                <option value="gas">Gas</option>
+                <option value="agua">Agua</option>
+                <option value="internet">Internet</option>
+                <option value="celular">Celular</option>
+                <option value="otro">Otro</option>
+              </select>
+            </label>
+            <p id="service-form-error" class="form-error" role="alert"></p>
+            <button id="service-submit" class="btn-primary" type="submit">Agregar servicio</button>
+          </form>
+          <h2 class="block-title">Factura</h2>
+          <form id="bill-form" class="sheet" novalidate>
+            <label>Servicio
+              <select name="service_id" id="bill-service" required></select>
+            </label>
+            <label>Período
+              <input name="period" type="month" required>
+            </label>
+            <label>Monto
+              <input name="amount" type="number" min="0" step="0.01" inputmode="decimal" required>
+            </label>
+            <p id="bill-form-error" class="form-error" role="alert"></p>
+            <button id="bill-submit" class="btn-primary" type="submit">Cargar factura</button>
+          </form>
         </section>
 
         <section class="view" id="suscripciones">
@@ -230,11 +273,34 @@
             <p class="month" data-month>Este mes</p>
             <p class="kicker">Débitos</p>
           </div>
-          <article class="tile tile-suscripciones tile-hero">
-            <p class="tile-kicker">Suscripciones</p>
-            <p class="tile-empty">Sin datos</p>
-          </article>
-          <p class="lede">Acá va a estar lo que se debita solo todos los meses.</p>
+          <div id="sub-summary"></div>
+          <h2 class="block-title">Suscripciones</h2>
+          <ul id="sub-list" class="manage-list"></ul>
+          <form id="sub-form" class="sheet" novalidate>
+            <label>Nombre
+              <input name="name" type="text" maxlength="80" required autocomplete="off">
+            </label>
+            <label>Monto
+              <input name="amount" type="number" min="0" step="0.01" inputmode="decimal" required>
+            </label>
+            <label>Moneda
+              <select name="currency">
+                <option value="ARS">ARS</option>
+                <option value="USD">USD</option>
+              </select>
+            </label>
+            <label>Frecuencia
+              <select name="frequency">
+                <option value="mensual">Mensual</option>
+                <option value="anual">Anual</option>
+              </select>
+            </label>
+            <label>Próximo cobro
+              <input name="next_charge_on" type="date" required>
+            </label>
+            <p id="sub-form-error" class="form-error" role="alert"></p>
+            <button id="sub-submit" class="btn-primary" type="submit">Agregar suscripción</button>
+          </form>
         </section>
       </div>
     </main>

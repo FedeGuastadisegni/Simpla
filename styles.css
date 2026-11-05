@@ -868,6 +868,22 @@ body:not(:has(.view:target)) #inicio {
   font-variant-numeric: tabular-nums;
 }
 
+.tile-hero.tile-stack {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.service-block {
+  padding: 12px 0 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.service-note {
+  margin: 4px 0 8px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
 .tile-figures {
   display: grid;
   gap: 2px;
@@ -896,7 +912,9 @@ body:not(:has(.view:target)) #inicio {
   border-bottom: 1px solid var(--line);
 }
 
-.manage-row > span:first-child {
+.manage-copy {
+  display: grid;
+  gap: 2px;
   flex: 1 1 12rem;
   min-width: 0;
 }
