@@ -111,7 +111,11 @@ create table if not exists public.card_items (
 comment on column public.card_items.currency is
   'ARS o USD. Los USD se guardan y se muestran en USD, sin convertir a pesos.';
 
--- Préstamo: la cuota, cuántas faltan y cuándo termina.
+-- Préstamo. amortization fija: la misma cuota todos los meses.
+-- aleman: sistema alemán. La amortización es el capital restante
+-- dividido las cuotas restantes, y es fija. La cuota es esa
+-- amortización más el interés del saldo (saldo × TEM).
+-- La CFT se guarda para mostrarla y no entra en la cuenta.
 create table if not exists public.loans (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
@@ -119,9 +123,27 @@ create table if not exists public.loans (
   installment_amount numeric(14, 2) not null check (installment_amount >= 0),
   remaining_installments integer not null check (remaining_installments >= 0),
   ends_on date not null,
+  amortization text not null default 'fija' check (amortization in ('fija', 'aleman')),
+  remaining_principal numeric(14, 2) check (remaining_principal is null or remaining_principal >= 0),
+  tem numeric(9, 6) check (tem is null or tem >= 0),
+  cft numeric(9, 4) check (cft is null or cft >= 0),
+  current_installment_bank numeric(14, 2) check (current_installment_bank is null or current_installment_bank >= 0),
+  adjust_bank boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+comment on column public.loans.tem is
+  'Tasa efectiva mensual, en porcentaje. 5 significa 5%.';
+
+comment on column public.loans.cft is
+  'Costo financiero total, en porcentaje. Solo se muestra: no entra en la proyección.';
+
+comment on column public.loans.current_installment_bank is
+  'Cuota que informa el banco este mes. Si no coincide con el cálculo, la diferencia puede ser IVA sobre intereses o seguro.';
+
+comment on column public.loans.adjust_bank is
+  'Si es true, cada cuota proyectada suma la diferencia fija entre la cuota del banco y el cálculo. Por defecto, apagado.';
 
 -- Servicio: nombre y categoría (luz, gas, internet…).
 create table if not exists public.services (

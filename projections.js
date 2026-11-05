@@ -1,9 +1,16 @@
 // Proyecciones de préstamos, suscripciones y servicios.
 // ARS y USD no se suman ni se convierten.
 //
-// Préstamo: la cuota cae en el mes de referencia y en los
-// remaining_installments meses que le siguen, contando ese mes
-// como el primero. La fecha de fin se muestra, no recorta la cuenta.
+// Préstamo de cuota fija: el mismo monto cae en el mes de referencia
+// y en los remaining_installments meses que le siguen, contando ese
+// mes como el primero. La fecha de fin se muestra, no recorta la cuenta.
+//
+// Sistema alemán: la amortización es el capital restante dividido las
+// cuotas restantes, y es fija. La cuota k es amortización + interés,
+// y el interés es el saldo × TEM. El saldo baja en la amortización.
+// La TEM está en porcentaje (5 es 5%). La CFT no entra en la cuenta.
+// Si la cuota del banco difiere, esa diferencia se suma a cada cuota
+// solo cuando adjust_bank está prendido.
 //
 // Suscripción mensual: todos los meses desde el mes del próximo cobro.
 // Anual: solo ese mes del año, desde el próximo cobro en adelante.
@@ -36,12 +43,61 @@ export function formatPercent(rate) {
   return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 }).format(rate * 100);
 }
 
+export const BANK_GAP_NOTE = "puede incluir IVA sobre intereses o seguro";
+
+export function germanSchedule(loan) {
+  const count = Number(loan.remaining_installments);
+  const principal = Number(loan.remaining_principal);
+  const tem = Number(loan.tem);
+  if (!Number.isInteger(count) || count <= 0) return [];
+  if (!Number.isFinite(principal) || principal < 0) return [];
+  if (!Number.isFinite(tem) || tem < 0) return [];
+  const rate = tem / 100;
+  const fixed = roundMoney(principal / count);
+  let balance = roundMoney(principal);
+  const rows = [];
+  for (let number = 1; number <= count; number += 1) {
+    const amortization = number === count ? balance : fixed;
+    const interest = roundMoney(balance * rate);
+    rows.push({
+      number,
+      amortization,
+      interest,
+      installment: roundMoney(amortization + interest),
+      balance,
+    });
+    balance = roundMoney(balance - amortization);
+  }
+  return rows;
+}
+
+export function bankDifference(loan) {
+  if (loan.amortization !== "aleman") return null;
+  if (loan.current_installment_bank == null || loan.current_installment_bank === "") return null;
+  const bank = Number(loan.current_installment_bank);
+  if (!Number.isFinite(bank)) return null;
+  const schedule = germanSchedule(loan);
+  if (schedule.length === 0) return null;
+  const gap = roundMoney(bank - schedule[0].installment);
+  if (gap === 0) return null;
+  return { bank, calculated: schedule[0].installment, gap };
+}
+
+function germanInstallment(loan, offset) {
+  const row = germanSchedule(loan)[offset];
+  if (!row) return 0;
+  if (!loan.adjust_bank) return row.installment;
+  return roundMoney(row.installment + (bankDifference(loan)?.gap || 0));
+}
+
 export function loanHits(loan, month, reference) {
   const remaining = Number(loan.remaining_installments);
-  const amount = Number(loan.installment_amount);
-  if (!Number.isFinite(remaining) || remaining <= 0 || !Number.isFinite(amount)) return 0;
+  if (!Number.isFinite(remaining) || remaining <= 0) return 0;
   const offset = monthKey(month.year, month.month) - monthKey(reference.year, reference.month);
   if (offset < 0 || offset >= remaining) return 0;
+  if (loan.amortization === "aleman") return germanInstallment(loan, offset);
+  const amount = Number(loan.installment_amount);
+  if (!Number.isFinite(amount)) return 0;
   return amount;
 }
 
