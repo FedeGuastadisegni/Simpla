@@ -137,6 +137,16 @@
             <button type="button" data-theme-choice="light">Claro</button>
             <button type="button" data-theme-choice="dark">Oscuro</button>
           </div>
+          <h2 class="block-title">Alertas</h2>
+          <label class="alert-row">
+            <input type="checkbox" id="alerts-enabled">
+            Avisarme antes de un vencimiento
+          </label>
+          <label class="alert-days">Días de anticipación
+            <input id="alerts-days" type="number" min="0" max="30" step="1" inputmode="numeric" value="3">
+          </label>
+          <button type="button" id="alerts-permission" class="btn-quiet">Activar notificaciones</button>
+          <p id="alerts-permission-note" class="hint"></p>
           <h2 class="block-title">Copia</h2>
           <div class="choice-row">
             <button type="button" id="export-json">Exportar JSON</button>
@@ -147,6 +157,10 @@
           </div>
         </section>
         <section class="view" id="inicio">
+          <section class="glass panel due-soon" id="due-soon" hidden>
+            <h2 class="block-title">Vence pronto</h2>
+            <ul id="due-soon-list"></ul>
+          </section>
           <p class="sync-status" id="sync-status" role="status">
             <span class="sync-dot" aria-hidden="true"></span>
             <span id="sync-label"></span>
