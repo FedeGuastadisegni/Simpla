@@ -1112,6 +1112,94 @@ dialog::backdrop {
   font-weight: 700;
 }
 
+.import-pdf {
+  width: 100%;
+  margin: 0;
+}
+
+.pdf-drop {
+  margin: 8px 0 12px;
+}
+
+.pdf-drop-note {
+  display: none;
+}
+
+.pdf-status {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.pdf-status.is-loaded,
+.pdf-status.is-ignored,
+.pdf-reason {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.pdf-reason {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+@media (min-width: 900px) {
+  .pdf-drop {
+    border: 1.5px dashed var(--line);
+    border-radius: 16px;
+    padding: 14px;
+  }
+
+  .pdf-drop.is-over {
+    border-color: var(--teal);
+    background: color-mix(in srgb, var(--mint) 40%, transparent);
+  }
+
+  .pdf-drop-note {
+    display: block;
+  }
+
+  .pdf-drop-phone {
+    display: none;
+  }
+}
+
+.minor-form {
+  margin: 8px 0 18px;
+}
+
+.minor-form summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.btn-quiet {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+}
+
+.pdf-line {
+  display: grid;
+  gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.pdf-quotas {
+  display: flex;
+  gap: 8px;
+}
+
+.pdf-quotas input {
+  width: 5.5rem;
+}
+
 .btn-primary {
   min-height: 48px;
   border: 0;

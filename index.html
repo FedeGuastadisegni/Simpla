@@ -175,11 +175,38 @@
             <p class="month" data-month>Este mes</p>
             <p class="kicker" id="tarjeta-due">Resumen</p>
           </div>
+          <div id="pdf-drop" class="pdf-drop">
+            <button type="button" id="import-pdf" class="btn-primary import-pdf">Importar resumen</button>
+            <p class="hint pdf-drop-note">Soltá el PDF acá, o elegilo con el botón. Se lee en este teléfono y no se guarda.</p>
+            <p class="hint pdf-drop-phone">El PDF se lee en este teléfono y no se guarda.</p>
+          </div>
+          <input id="import-pdf-file" type="file" accept="application/pdf,.pdf" hidden>
+          <section id="pdf-review" class="sheet" hidden>
+            <p class="kicker">Revisión</p>
+            <p id="pdf-summary"></p>
+            <p id="pdf-dates" class="service-note"></p>
+            <p id="pdf-balances" class="service-note"></p>
+            <label>Nombre de la tarjeta
+              <input id="pdf-card-name" type="text" maxlength="80" autocomplete="off">
+            </label>
+            <p id="pdf-card-note" class="service-note"></p>
+            <p class="hint">Solo se guardan los consumos que dejes tildados.</p>
+            <div id="pdf-lines"></div>
+            <p id="pdf-error" class="form-error" role="alert"></p>
+            <p id="pdf-notice" class="service-note"></p>
+            <div class="row-actions">
+              <button type="button" id="pdf-cancel">Cancelar</button>
+              <button type="button" id="pdf-confirm" class="btn-primary">Confirmar</button>
+            </div>
+          </section>
+
           <div id="card-picker" class="picker" hidden></div>
           <div id="tarjeta-summary"></div>
 
           <h2 class="block-title">Tarjetas</h2>
           <ul id="card-list" class="manage-list"></ul>
+          <details class="minor-form">
+            <summary>Agregar tarjeta a mano</summary>
           <form id="card-form" class="sheet" novalidate>
             <label>Nombre
               <input name="name" type="text" maxlength="80" required autocomplete="off">
@@ -187,11 +214,15 @@
             <label>Día de vencimiento
               <input name="due_day" type="number" min="1" max="31" inputmode="numeric" required>
             </label>
+            <label>Día de cierre
+              <input name="closing_day" type="number" min="1" max="31" inputmode="numeric" placeholder="Opcional">
+            </label>
             <p id="card-form-error" class="form-error" role="alert"></p>
-            <button id="card-submit" class="btn-primary" type="submit">Agregar tarjeta</button>
+            <button id="card-submit" class="btn-quiet" type="submit">Agregar tarjeta</button>
           </form>
+          </details>
 
-          <h2 class="block-title">Consumos</h2>
+          <h2 class="block-title">Consumo a mano</h2>
           <ul id="item-list" class="manage-list"></ul>
           <form id="item-form" class="sheet" novalidate>
             <label>Tarjeta

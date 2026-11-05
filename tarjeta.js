@@ -20,6 +20,10 @@ export function setCardUser(id) {
   userId = id;
 }
 
+export function focusCard(id) {
+  selectedCardId = id;
+}
+
 function money(amount, currency) {
   const formatted = new Intl.NumberFormat("es-AR", {
     minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
@@ -159,10 +163,10 @@ function renderSummary(card, items) {
   clear(root);
   if (!card) {
     due.textContent = "Resumen";
-    line(root, "Todavía no cargaste una tarjeta.", "empty");
+    line(root, "Importá un resumen para ver el mes.", "empty");
     return;
   }
-  due.textContent = `Vence el ${card.due_day}`;
+  due.textContent = card.closing_day ? `Vence el ${card.due_day} · cierra el ${card.closing_day}` : `Vence el ${card.due_day}`;
   const month = currentMonth();
   const summary = monthSummary(items, [card], month);
   const hero = document.createElement("p");
@@ -249,7 +253,8 @@ function renderCardList(cards) {
     const item = document.createElement("li");
     item.className = "manage-row";
     const name = document.createElement("span");
-    name.textContent = `${card.name} · vence el ${card.due_day}`;
+    const closing = card.closing_day ? ` · cierra el ${card.closing_day}` : "";
+    name.textContent = `${card.name} · vence el ${card.due_day}${closing}`;
     const actions = document.createElement("span");
     actions.className = "row-actions";
     const edit = document.createElement("button");
@@ -324,6 +329,7 @@ function startCardEdit(card) {
   editingCardId = card.id;
   field(form, "name").value = card.name;
   field(form, "due_day").value = card.due_day;
+  field(form, "closing_day").value = card.closing_day ?? "";
   document.getElementById("card-submit").textContent = "Guardar cambios";
   form.querySelector("[name=name]").focus();
 }
@@ -393,12 +399,18 @@ function wireForms() {
     if (!userId) return;
     const name = redactLongNumbers(field(cardForm, "name").value.trim());
     const due = Number(field(cardForm, "due_day").value);
+    const closingRaw = field(cardForm, "closing_day").value.trim();
+    const closing = closingRaw === "" ? null : Number(closingRaw);
     if (!name) {
       error.textContent = "Poné un nombre.";
       return;
     }
     if (!Number.isInteger(due) || due < 1 || due > 31) {
       error.textContent = "El vencimiento es un día del 1 al 31.";
+      return;
+    }
+    if (closing != null && (!Number.isInteger(closing) || closing < 1 || closing > 31)) {
+      error.textContent = "El cierre es un día del 1 al 31.";
       return;
     }
     const id = editingCardId || crypto.randomUUID();
@@ -410,6 +422,7 @@ function wireForms() {
       user_id: userId,
       name,
       due_day: due,
+      closing_day: closing,
       created_at: existing?.created_at,
     }));
     selectedCardId = id;
@@ -423,7 +436,7 @@ function wireForms() {
     if (!userId) return;
     const cards = await listRows("cards");
     if (cards.length === 0) {
-      error.textContent = "Primero cargá una tarjeta.";
+      error.textContent = "Importá un resumen o agregá una tarjeta a mano.";
       return;
     }
     const description = redactLongNumbers(field(itemForm, "description").value.trim());

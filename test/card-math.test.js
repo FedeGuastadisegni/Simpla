@@ -90,8 +90,35 @@ test("un pago impacta solo en el mes de la fecha", () => {
 });
 
 test("sin día de cierre, el mes del resumen es el de la fecha aunque el vencimiento ya haya pasado", () => {
-  const month = statementMonth("2026-11-20", 5);
-  assert.deepEqual(month, { year: 2026, month: 10 });
+  const card = { id: CARD.id, due_day: 5 };
+  const item = {
+    card_id: CARD.id,
+    amount: 10,
+    currency: "ARS",
+    spent_on: "2026-11-20",
+    installment_number: null,
+    installment_count: null,
+  };
+  assert.equal(monthSummary([item], [card], MONTH).totals.ARS, 10);
   assert.deepEqual(statementMonth("2026-11-20", null), { year: 2026, month: 10 });
-  assert.equal(statementMonth("no-es-fecha", 10), null);
+  assert.deepEqual(statementMonth("2026-11-20"), { year: 2026, month: 10 });
+  assert.equal(statementMonth("no-es-fecha", 15), null);
+});
+
+test("con día de cierre, un gasto posterior cae en el resumen siguiente", () => {
+  assert.deepEqual(statementMonth("2026-10-15", 15), { year: 2026, month: 9 });
+  assert.deepEqual(statementMonth("2026-10-16", 15), { year: 2026, month: 10 });
+  assert.deepEqual(statementMonth("2026-12-20", 15), { year: 2027, month: 0 });
+  const card = { id: CARD.id, due_day: 1, closing_day: 15 };
+  const before = {
+    card_id: CARD.id,
+    amount: 10,
+    currency: "ARS",
+    spent_on: "2026-10-15",
+    installment_number: null,
+    installment_count: null,
+  };
+  const after = { ...before, amount: 7, spent_on: "2026-10-16" };
+  assert.equal(monthSummary([before, after], [card], { year: 2026, month: 9 }).totals.ARS, 10);
+  assert.equal(monthSummary([before, after], [card], { year: 2026, month: 10 }).totals.ARS, 7);
 });

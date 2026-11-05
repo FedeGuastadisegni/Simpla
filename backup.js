@@ -16,7 +16,7 @@ export const TABLES = [
 ];
 
 const FIELDS = {
-  cards: ["id", "name", "due_day"],
+  cards: ["id", "name", "due_day", "closing_day"],
   card_items: ["id", "card_id", "description", "amount", "currency", "spent_on", "installment_number", "installment_count"],
   loans: ["id", "name", "installment_amount", "remaining_installments", "ends_on"],
   services: ["id", "name", "category"],

@@ -30,10 +30,10 @@ jobs:
       - name: Assemble site
         run: |
           mkdir -p _site/icons _site/fonts _site/vendor
-          cp index.html styles.css app.js config.js db.js card-math.js projections.js combined.js backup.js privacy.js tarjeta.js planes.js proyeccion.js sw.js manifest.webmanifest favicon.ico _site/
+          cp index.html styles.css app.js config.js db.js card-math.js projections.js combined.js backup.js privacy.js tarjeta.js planes.js proyeccion.js bbva.js pdf-text.js resumen.js sw.js manifest.webmanifest favicon.ico _site/
           cp icons/* _site/icons/
           cp fonts/* _site/fonts/
-          cp vendor/* _site/vendor/
+          cp -a vendor/. _site/vendor/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5

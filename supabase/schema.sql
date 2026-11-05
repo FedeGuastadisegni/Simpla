@@ -72,16 +72,22 @@ create trigger reject_foreign_email
   for each row
   execute function public.reject_foreign_email();
 
--- Tarjeta: nombre y día de vencimiento.
+-- Tarjeta: nombre, día de vencimiento y, si se conoce, día de cierre.
+-- closing_day queda null en tarjetas viejas: sin cierre, el mes del
+-- resumen sigue siendo el mes de la fecha de compra.
 create table if not exists public.cards (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
   name text not null,
   due_day smallint not null check (due_day between 1 and 31),
+  closing_day smallint check (closing_day is null or closing_day between 1 and 31),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (id, user_id)
 );
+
+comment on column public.cards.closing_day is
+  'Día de cierre del resumen. Si está, un gasto posterior a ese día entra en el mes siguiente. Null: el mes es el de la fecha de compra.';
 
 -- Compra en la tarjeta. USD queda en USD.
 -- installment_* en null si es un pago solo.

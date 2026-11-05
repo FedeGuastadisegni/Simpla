@@ -1,11 +1,10 @@
 // Mes del resumen de una compra.
 //
-// La tarjeta tiene día de vencimiento, pero no día de cierre. El cierre
-// es el que define si una compra entra en el resumen que vence este mes
-// o en el siguiente, y no lo guardamos. Con solo el vencimiento no se
-// puede saber con certeza. Por eso el mes del resumen es el mes
-// calendario de la fecha de la compra (`spent_on`). `dueDay` se recibe
-// para dejar explícito que no alcanza para correr el mes.
+// Si la tarjeta tiene día de cierre, una compra con día posterior a ese
+// cierre entra en el resumen del mes siguiente. El día del cierre
+// inclusive queda en el mes de la fecha. Sin día de cierre, el mes del
+// resumen es el mes calendario de `spent_on`: el vencimiento solo no
+// alcanza para correr el mes, y esta función no lo usa.
 //
 // Una compra en un pago impacta solo en ese mes.
 // Una compra en cuotas, con cuota actual N de T en el mes M, impacta
@@ -30,17 +29,13 @@ export function fromMonthKey(key) {
   return { year: Math.floor(key / 12), month: key % 12 };
 }
 
-export function statementMonth(spentOn, dueDay) {
+export function statementMonth(spentOn, closingDay) {
   const date = parseIsoDate(spentOn);
   if (!date) return null;
-  // dueDay inválido o ausente no cambia la regla: sigue siendo el mes de la fecha.
-  if (dueDay != null && dueDay !== "") {
-    const day = Number(dueDay);
-    if (!Number.isInteger(day) || day < 1 || day > 31) {
-      return { year: date.year, month: date.month };
-    }
-  }
-  return { year: date.year, month: date.month };
+  const closing = Number(closingDay);
+  const hasClosing = closingDay != null && closingDay !== "" && Number.isInteger(closing) && closing >= 1 && closing <= 31;
+  if (!hasClosing || date.day <= closing) return { year: date.year, month: date.month };
+  return fromMonthKey(monthKey(date.year, date.month) + 1);
 }
 
 function currencyOf(item) {
@@ -56,8 +51,8 @@ function isOnePayment(item) {
   return item.installment_number == null || item.installment_count == null;
 }
 
-function rangeFor(item, dueDay) {
-  const start = statementMonth(item.spent_on, dueDay);
+function rangeFor(item, closingDay) {
+  const start = statementMonth(item.spent_on, closingDay);
   if (!start) return null;
   const startKey = monthKey(start.year, start.month);
   if (isOnePayment(item)) return { startKey, endKey: startKey, onePayment: true };
@@ -74,14 +69,14 @@ export function emptyTotals() {
 }
 
 export function monthSummary(items, cards, month) {
-  const dueByCard = new Map(cards.map((card) => [card.id, card.due_day]));
+  const closingByCard = new Map(cards.map((card) => [card.id, card.closing_day]));
   const target = monthKey(month.year, month.month);
   const totals = emptyTotals();
   const charges = [];
   const ending = [];
 
   for (const item of items) {
-    const range = rangeFor(item, dueByCard.get(item.card_id));
+    const range = rangeFor(item, closingByCard.get(item.card_id));
     if (!range || target < range.startKey || target > range.endKey) continue;
     const currency = currencyOf(item);
     totals[currency] += amountOf(item);
