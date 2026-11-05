@@ -1,28 +1,72 @@
 # Simpla
 
-Simpla es la app personal de Federico para seguir los gastos en Argentina: la tarjeta y sus cuotas, los préstamos, los servicios (con el aumento que se viene) y las suscripciones, con una mirada a los próximos 6 meses.
+Simpla es una aplicación web personal para organizar las finanzas del día a día en Argentina y anticipar compromisos de los próximos seis meses.
 
-Por ahora es el esqueleto: se ve el diseño, pero todavía no carga datos. Se adapta al modo claro u oscuro del sistema y, después de la primera visita, abre aunque no haya internet. Las fuentes van en el repositorio (Bricolage Grotesque e Instrument Serif, licencia OFL), así el texto también carga sin conexión. El acceso con Google y la base están en `SUPABASE.md`.
+La aplicación ya cuenta con persistencia y sincronización: permite registrar tarjetas y consumos en cuotas, préstamos, servicios, facturas, suscripciones y gastos; consultar proyecciones y próximos vencimientos; e importar consumos de resúmenes de BBVA.
 
-## Instalar
+## Funcionalidades
 
-Dirección: https://fedeguastadisegni.github.io/Simpla/
+- **Tarjetas:** tarjetas, consumos, cuotas y fechas de cierre.
+- **Préstamos:** seguimiento de cuotas y proyecciones de amortización.
+- **Servicios y suscripciones:** registro de importes, períodos y próximos cargos.
+- **Gastos:** registro de egresos en pesos o dólares.
+- **Proyecciones:** vista combinada de compromisos y vencimientos para los próximos seis meses.
+- **Importación:** lectura de resúmenes BBVA Visa y Mastercard desde PDF, además de importación desde imágenes.
+- **Alertas:** próximos pagos y cambios relevantes.
+- **Respaldo:** exportación e importación de copias de seguridad en JSON.
 
-### En el celular (Chrome, Android)
+## Cómo funciona
+
+Simpla es una PWA construida con HTML, CSS y JavaScript nativo, sin framework de frontend ni proceso de compilación.
+
+La aplicación mantiene datos en IndexedDB en el navegador y utiliza una cola local para conservar cambios cuando no hay conexión. Al recuperar conectividad, sincroniza esos cambios con Supabase. El acceso se realiza con Google y los permisos de datos se controlan en la base mediante Row Level Security (RLS).
+
+El modo sin conexión permite volver a abrir la aplicación y trabajar con los datos locales. La sincronización con la nube requiere conexión a internet.
+
+## Usar Simpla
+
+Aplicación publicada: https://fedeguastadisegni.github.io/Simpla/
+
+### En Android (Chrome)
 
 1. Abrí el enlace en Chrome.
-2. Tocá el menú ⋮ y elegí **Instalar app**. Según la versión, puede decir **Agregar a la pantalla principal**.
-3. Confirmá. El ícono de Simpla queda en el inicio.
+2. Abrí el menú ⋮ y elegí **Instalar app** o **Agregar a la pantalla principal**.
+3. Confirmá. Simpla aparecerá junto con tus otras aplicaciones.
 
-### En la notebook (Chrome)
+### En una notebook o computadora (Chrome)
 
 1. Abrí el enlace en Chrome.
-2. A la derecha de la barra de direcciones, tocá **Instalar** (una pantalla con una flecha).
-3. Si no aparece ese ícono: menú ⋮ → **Transmitir, guardar y compartir** → **Instalar página como app…**.
-4. Confirmá. Se abre en su propia ventana.
+2. Seleccioná **Instalar** en la barra de direcciones, si aparece.
+3. Como alternativa, abrí el menú ⋮ y elegí **Transmitir, guardar y compartir → Instalar página como app…**.
+
+## Desarrollo local
+
+No hace falta instalar dependencias de frontend. Para servir la aplicación localmente, desde la raíz del repositorio podés ejecutar:
+
+\`\`\`bash
+python -m http.server 8000
+\`\`\`
+
+Después abrí http://localhost:8000.
+
+Para probar el inicio de sesión local, la URL local también debe estar permitida en la configuración de URLs de autenticación de Supabase. La configuración del proyecto está en \`config.js\`; no agregues claves secretas ni una \`service_role\` key al código del navegador.
+
+## Pruebas
+
+Los tests usan el runner nativo de Node.js y no requieren dependencias adicionales. Con Node.js 22 o superior, ejecutá:
+
+\`\`\`bash
+npm test
+\`\`\`
+
+GitHub Actions ejecuta esta misma suite en cada pull request hacia \`main\`, en cada push a \`main\` y manualmente desde la pestaña **Actions**. El workflow de tests no publica el sitio.
 
 ## Publicación
 
-Cada push a `main` publica el sitio con GitHub Actions.
+Cada push a \`main\` publica el sitio mediante el workflow **Deploy GitHub Pages**. Los pull requests ejecutan las pruebas, pero no despliegan la aplicación.
 
-Si la página no aparece, en el repositorio entrá a **Settings → Pages → Build and deployment → Source** y elegí **GitHub Actions**. Sin ese origen, el workflow no tiene dónde publicar. Si el primer intento falló antes de cambiar esa opción, volvé a correr **Deploy GitHub Pages** desde la pestaña Actions.
+Si la página no aparece, en el repositorio entrá a **Settings → Pages → Build and deployment → Source** y elegí **GitHub Actions**.
+
+## Documentación de Supabase
+
+La configuración de autenticación, base de datos y políticas de acceso está documentada en [SUPABASE.md](SUPABASE.md).
