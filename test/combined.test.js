@@ -1,0 +1,127 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { combinedForecast, monthDelta } from "../combined.js";
+
+// EJEMPLO. Los mismos datos de la tarjeta, los préstamos, los servicios
+// y las suscripciones. Los totales de abajo están escritos a mano.
+const NOV = { year: 2026, month: 10 };
+
+const DATA = {
+  cards: [{ id: "card-ejemplo", due_day: 10 }],
+  cardItems: [
+    {
+      id: "heladera",
+      card_id: "card-ejemplo",
+      description: "Heladera",
+      amount: 100000,
+      currency: "ARS",
+      spent_on: "2026-11-15",
+      installment_number: 12,
+      installment_count: 12,
+    },
+    {
+      id: "zapatillas",
+      card_id: "card-ejemplo",
+      description: "Zapatillas",
+      amount: 30000,
+      currency: "ARS",
+      spent_on: "2026-11-15",
+      installment_number: 3,
+      installment_count: 3,
+    },
+    {
+      id: "en-curso",
+      card_id: "card-ejemplo",
+      description: "Cuota en curso",
+      amount: 50000,
+      currency: "ARS",
+      spent_on: "2026-11-15",
+      installment_number: 2,
+      installment_count: 6,
+    },
+    {
+      id: "usd",
+      card_id: "card-ejemplo",
+      description: "Consumo en dólares",
+      amount: 20,
+      currency: "USD",
+      spent_on: "2026-11-15",
+      installment_number: null,
+      installment_count: null,
+    },
+  ],
+  loans: [{
+    name: "Préstamo personal",
+    installment_amount: 95000,
+    remaining_installments: 8,
+    ends_on: "2027-06-01",
+  }],
+  subscriptions: [
+    {
+      name: "Netflix",
+      amount: 11999,
+      currency: "ARS",
+      frequency: "mensual",
+      next_charge_on: "2026-11-05",
+    },
+    {
+      name: "iCloud",
+      amount: 20,
+      currency: "USD",
+      frequency: "anual",
+      next_charge_on: "2026-11-01",
+    },
+  ],
+  services: [
+    { id: "edenor", name: "Edenor" },
+    { id: "telecentro", name: "Telecentro" },
+  ],
+  serviceBills: [
+    { service_id: "edenor", period: "2026-07", amount: 100000 },
+    { service_id: "edenor", period: "2026-08", amount: 110000 },
+    { service_id: "edenor", period: "2026-09", amount: 121000 },
+    { service_id: "edenor", period: "2026-10", amount: 133100 },
+    { service_id: "telecentro", period: "2026-10", amount: 27500 },
+  ],
+};
+
+// Noviembre a abril, a mano:
+// tarjeta 180000, 50000, 50000, 50000, 50000, 0
+// préstamo 95000 los seis meses
+// Edenor 146410, 161051, 177156.1, 194871.71, 214358.88, 235794.77
+// enero: 50000+95000+177156.1+27500+11999 = 361655.1
+// Telecentro 27500 los seis
+// Netflix 11999 los seis
+// USD: noviembre 20 de la tarjeta + 20 de iCloud; después 0
+const EXPECTED = [
+  { ARS: 460909, USD: 40 },
+  { ARS: 345550, USD: 0 },
+  { ARS: 361655.1, USD: 0 },
+  { ARS: 379370.71, USD: 0 },
+  { ARS: 398857.88, USD: 0 },
+  { ARS: 370293.77, USD: 0 },
+];
+
+test("EJEMPLO proyección: totales de los seis meses, ARS y USD separados", () => {
+  const months = combinedForecast(DATA, NOV, 6);
+  assert.equal(months.length, 6);
+  months.forEach((month, index) => {
+    assert.equal(month.totals.ARS, EXPECTED[index].ARS);
+    assert.equal(month.totals.USD, EXPECTED[index].USD);
+  });
+  assert.equal(months[0].tarjeta.ARS + months[0].tarjeta.USD === months[0].totals.ARS, false);
+});
+
+test("EJEMPLO proyección: en diciembre baja por las cuotas que terminan", () => {
+  const months = combinedForecast(DATA, NOV, 6);
+  const delta = monthDelta(months[0], months[1]);
+  assert.equal(delta.ARS, -115359);
+  assert.equal(delta.USD, -40);
+  assert.deepEqual(months[0].endingCards.map((item) => item.description).sort(), ["Heladera", "Zapatillas"]);
+  assert.equal(months[0].endingLoans.length, 0);
+  const edenor = months[1].serviceDetails.find((service) => service.name === "Edenor");
+  const telecentro = months[1].serviceDetails.find((service) => service.name === "Telecentro");
+  assert.equal(edenor.estimated, true);
+  assert.equal(edenor.text, "Aumento promedio de las últimas 4 facturas: 10% por mes.");
+  assert.equal(telecentro.text, "Falta historial para estimar el aumento.");
+});
