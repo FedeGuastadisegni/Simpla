@@ -1,6 +1,8 @@
 import { ALLOWED_EMAIL, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "./config.js";
-import { startData, useLocalDemoStore } from "./db.js";
+import { buildExport, planImport, TABLES } from "./backup.js";
+import { listRows, queueChange, startData, useLocalDemoStore } from "./db.js";
 import { renderPlanes, seedPlansIfEmpty, setPlanUser, watchPlans } from "./planes.js";
+import { renderProyeccion, watchProyeccion } from "./proyeccion.js";
 import { DEMO_USER, isLocalDemo, renderTarjeta, seedExampleIfEmpty, setCardUser, watchCardData } from "./tarjeta.js";
 
 const SECTIONS = {
@@ -9,6 +11,7 @@ const SECTIONS = {
   prestamos: "Préstamos",
   servicios: "Servicios",
   suscripciones: "Suscripciones",
+  proyeccion: "Proyección",
 };
 
 const links = document.querySelectorAll(".nav a");
@@ -30,6 +33,8 @@ const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_K
 
 let privateApp = false;
 let started = false;
+let backupUserId = null;
+let pendingImport = null;
 
 function currentId() {
   const id = location.hash.replace(/^#/, "");
@@ -98,6 +103,7 @@ function showApp() {
   fillCalendar();
   renderTarjeta();
   renderPlanes();
+  renderProyeccion();
   if (!started && !isLocalDemo()) {
     started = true;
     startData(client);
@@ -147,11 +153,87 @@ window.addEventListener("offline", updateLoginOffline);
 
 watchCardData();
 watchPlans();
+watchProyeccion();
+
+function setBackupUser(id) {
+  backupUserId = id;
+}
+
+async function exportJson() {
+  const tables = {};
+  for (const table of TABLES) tables[table] = await listRows(table);
+  const payload = buildExport(tables, new Date().toISOString());
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "simpla.json";
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById("export-json").addEventListener("click", () => {
+  exportJson();
+});
+
+const importFile = document.getElementById("import-file");
+const importDialog = document.getElementById("import-dialog");
+const importSummary = document.getElementById("import-summary");
+const importError = document.getElementById("import-error");
+
+document.getElementById("import-json").addEventListener("click", () => {
+  importFile.click();
+});
+
+importFile.addEventListener("change", async () => {
+  const file = importFile.files && importFile.files[0];
+  importFile.value = "";
+  pendingImport = null;
+  importError.textContent = "";
+  if (!file) return;
+  let payload;
+  try {
+    payload = JSON.parse(await file.text());
+  } catch (error) {
+    importError.textContent = "Ese archivo no es JSON.";
+    importSummary.textContent = "";
+    importDialog.showModal();
+    return;
+  }
+  const existing = {};
+  for (const table of TABLES) existing[table] = await listRows(table);
+  const plan = planImport(payload, existing);
+  if (!plan.ok) {
+    importError.textContent = plan.error;
+    importSummary.textContent = "";
+    importDialog.showModal();
+    return;
+  }
+  pendingImport = plan;
+  importSummary.textContent = plan.summary ? `${plan.summary}.` : "El archivo no trae datos.";
+  importDialog.showModal();
+});
+
+document.getElementById("import-cancel").addEventListener("click", () => {
+  pendingImport = null;
+  importDialog.close();
+});
+
+document.getElementById("import-confirm").addEventListener("click", async () => {
+  const plan = pendingImport;
+  pendingImport = null;
+  importDialog.close();
+  if (!plan || !backupUserId) return;
+  for (const op of plan.ops) {
+    await queueChange(op.table, op.op, { ...op.row, user_id: backupUserId });
+  }
+});
 
 if (isLocalDemo()) {
   useLocalDemoStore();
   setCardUser(DEMO_USER);
   setPlanUser(DEMO_USER);
+  setBackupUser(DEMO_USER);
   const flag = document.getElementById("demo-flag");
   if (flag) flag.hidden = false;
   seedExampleIfEmpty()
@@ -167,6 +249,7 @@ if (isLocalDemo()) {
       if (session?.user?.id) {
         setCardUser(session.user.id);
         setPlanUser(session.user.id);
+        setBackupUser(session.user.id);
       }
       acceptSession(session);
     }, 0);

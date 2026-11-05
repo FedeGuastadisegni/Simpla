@@ -175,9 +175,9 @@ a:focus-visible {
   padding: 2px 1px 0;
   text-decoration: none;
   color: var(--nav-idle);
-  font-size: 0.68rem;
+  font-size: 0.6rem;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   line-height: 1.1;
 }
 
@@ -227,7 +227,7 @@ body:has(#suscripciones:target) .nav a[href="#suscripciones"] {
 
 main {
   min-width: 0;
-  padding: calc(var(--header-h) + env(safe-area-inset-top) + 18px) 16px calc(128px + env(safe-area-inset-bottom));
+  padding: calc(var(--header-h) + env(safe-area-inset-top) + 18px) 16px calc(168px + env(safe-area-inset-bottom));
 }
 
 .content {
@@ -585,6 +585,99 @@ body:not(:has(.view:target)) #inicio {
   .month {
     font-size: 2.75rem;
   }
+}
+
+.nav-tools {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 2px 8px 0;
+}
+
+.nav-tools button {
+  border: 0;
+  background: transparent;
+  color: var(--nav-idle);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 4px 0;
+}
+
+.nav-tools button:hover,
+.nav-tools button:focus-visible {
+  color: var(--cream);
+}
+
+a.mint-bar {
+  display: block;
+  text-decoration: none;
+}
+
+.timeline {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  border-left: 2px solid var(--text);
+}
+
+.timeline li {
+  position: relative;
+  padding: 0 0 22px 16px;
+}
+
+.timeline li::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--text);
+}
+
+.timeline li.is-next {
+  background: color-mix(in srgb, var(--mint) 55%, transparent);
+  border-radius: 12px;
+  margin-left: -8px;
+  padding: 10px 12px 16px 24px;
+}
+
+.timeline-month {
+  margin: 0;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.timeline-total,
+.timeline-change {
+  margin: 6px 0 0;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.timeline-cat {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 6px;
+}
+
+dialog {
+  width: min(100% - 32px, 24rem);
+  border: 0;
+  border-radius: 16px;
+  padding: 18px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+dialog::backdrop {
+  background: rgba(11, 15, 14, 0.45);
 }
 
 .sign-out {

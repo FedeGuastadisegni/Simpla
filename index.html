@@ -83,6 +83,16 @@
           </span>
           <span class="lbl">Servicios</span>
         </a>
+        <a href="#proyeccion" aria-label="Proyección">
+          <span class="ico">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 16l5-5 3 3 7-8"/>
+              <path d="M14 6h5v5"/>
+            </svg>
+          </span>
+          <span class="lbl lbl-short">Proyec.</span>
+          <span class="lbl lbl-full">Proyección</span>
+        </a>
         <a href="#suscripciones" aria-label="Suscripciones">
           <span class="ico">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -93,6 +103,11 @@
           <span class="lbl lbl-short">Suscrip.</span>
           <span class="lbl lbl-full">Suscripciones</span>
         </a>
+        </div>
+        <div class="nav-tools">
+          <button type="button" id="export-json">Exportar JSON</button>
+          <button type="button" id="import-json">Importar JSON</button>
+          <input id="import-file" type="file" accept="application/json,.json" hidden>
         </div>
         <button type="button" id="sign-out" class="sign-out">Salir</button>
       </nav>
@@ -110,8 +125,9 @@
             <p class="month" data-month>Este mes</p>
             <p class="kicker">Comprometido</p>
           </div>
-          <p class="display">Sin datos</p>
-          <p class="mint-bar">Cuando haya datos, acá vas a ver cómo cambia el mes que viene.</p>
+          <p class="display" id="inicio-total">Sin datos</p>
+          <p class="usd-total" id="inicio-usd" hidden></p>
+          <a class="mint-bar" id="inicio-next" href="#proyeccion">Cuando haya datos, acá vas a ver cómo cambia el mes que viene.</a>
 
           <div class="mosaic">
             <a class="tile tile-tarjeta" href="#tarjeta">
@@ -141,10 +157,17 @@
             <li><span class="tick"></span><span class="rail-label">—</span></li>
             <li><span class="tick"></span><span class="rail-label">—</span></li>
           </ol>
-          <p class="empty">Sin proyección todavía.</p>
 
           <h2 class="block-title">Próximos pagos</h2>
           <p class="empty">Todavía no hay pagos cargados.</p>
+        </section>
+
+        <section class="view" id="proyeccion">
+          <div class="split-head">
+            <p class="month" data-month>Este mes</p>
+            <p class="kicker">6 meses</p>
+          </div>
+          <div id="proyeccion-timeline"></div>
         </section>
 
         <section class="view" id="tarjeta">
@@ -306,6 +329,15 @@
     </main>
   </div>
 
+  <dialog id="import-dialog">
+    <p class="kicker">Importar</p>
+    <p id="import-summary"></p>
+    <p id="import-error" class="form-error" role="alert"></p>
+    <div class="row-actions">
+      <button type="button" id="import-cancel">Cancelar</button>
+      <button type="button" id="import-confirm" class="btn-primary">Agregar</button>
+    </div>
+  </dialog>
   <script src="vendor/supabase.js"></script>
   <script type="module" src="app.js"></script>
 </body>
