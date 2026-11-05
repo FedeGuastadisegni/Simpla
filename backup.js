@@ -21,7 +21,7 @@ const FIELDS = {
   loans: ["id", "name", "installment_amount", "remaining_installments", "ends_on"],
   services: ["id", "name", "category"],
   service_bills: ["id", "service_id", "period", "amount"],
-  subscriptions: ["id", "name", "amount", "currency", "frequency", "next_charge_on"],
+  subscriptions: ["id", "name", "amount", "currency", "frequency", "next_charge_on", "on_card"],
   expenses: ["id", "spent_on", "amount", "currency", "description", "category", "source"],
 };
 

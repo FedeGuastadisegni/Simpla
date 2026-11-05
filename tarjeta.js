@@ -25,12 +25,21 @@ export function focusCard(id) {
   selectedCardId = id;
 }
 
+export function focusManualCharge() {
+  if (location.hash !== "#tarjeta") location.hash = "#tarjeta";
+  const form = document.getElementById("item-form");
+  if (!form) return;
+  form.scrollIntoView({ block: "center" });
+  const input = form.elements.namedItem("description");
+  if (input instanceof HTMLElement) input.focus();
+}
+
 function money(amount, currency) {
   const formatted = new Intl.NumberFormat("es-AR", {
     minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
     maximumFractionDigits: 2,
   }).format(amount);
-  return currency === "USD" ? `USD ${formatted}` : `$ ${formatted}`;
+  return currency === "USD" ? `USD ${formatted}` : `$${formatted}`;
 }
 
 function monthLabel(month, style) {

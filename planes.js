@@ -13,6 +13,7 @@ import {
   duplicateBill,
   serviceAmountInMonth,
   serviceEstimate,
+  paidOnCard,
   subscriptionsInMonth,
 } from "./projections.js";
 
@@ -50,7 +51,7 @@ function money(amount, currency) {
     minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
     maximumFractionDigits: 2,
   }).format(amount);
-  return currency === "USD" ? `USD ${formatted}` : `$ ${formatted}`;
+  return currency === "USD" ? `USD ${formatted}` : `$${formatted}`;
 }
 
 function currentMonth() {
@@ -113,10 +114,12 @@ function figures(parent, totals, currencyMode) {
     add(box, "span", "", money(totals, "ARS"));
     return;
   }
-  add(box, "span", "", money(totals.ARS, "ARS"));
-  if (totals.USD > 0) {
+  const pesos = Number(totals.ARS) || 0;
+  const dolares = Number(totals.USD) || 0;
+  if (pesos > 0 || dolares === 0) add(box, "span", "", money(pesos, "ARS"));
+  if (dolares > 0) {
     const usd = add(box, "span", "tile-usd");
-    putAmount(usd, totals.USD, "USD");
+    putAmount(usd, dolares, "USD");
   }
 }
 
@@ -127,7 +130,15 @@ function forecastList(parent, months, mode) {
     add(row, "span", "forecast-name", monthName(entry.month, "short"));
     const amounts = add(row, "span", "forecast-amounts");
     if (mode === "ars") amounts.textContent = money(entry.amount, "ARS");
-    else amounts.append(`${money(entry.totals.ARS, "ARS")} · `, amountNode(entry.totals.USD, "USD"));
+    else {
+      const pesos = Number(entry.totals.ARS) || 0;
+      const dolares = Number(entry.totals.USD) || 0;
+      if (pesos > 0 || dolares === 0) amounts.append(money(pesos, "ARS"));
+      if (dolares > 0) {
+        if (pesos > 0) amounts.append(" · ");
+        amounts.append(amountNode(dolares, "USD"));
+      }
+    }
   }
 }
 
@@ -194,6 +205,7 @@ export async function seedPlansIfEmpty() {
     currency: "ARS",
     frequency: "mensual",
     next_charge_on: charge,
+    on_card: true,
   }));
   await queueChange("subscriptions", "insert", stamp({
     id: crypto.randomUUID(),
@@ -299,8 +311,11 @@ function renderSubscriptions(subscriptions) {
     return;
   }
   const hero = add(root, "article", "tile tile-suscripciones tile-hero tile-stack");
-  add(hero, "p", "tile-kicker", "Este mes");
+  add(hero, "p", "tile-kicker", "Suma a los fijos");
   figures(hero, totals, "both");
+  if (subscriptions.some((subscription) => paidOnCard(subscription))) {
+    add(root, "p", "service-note", "Las marcadas “En tarjeta” siguen acá por el próximo cobro y no se suman: ese monto ya entra con la tarjeta.");
+  }
   if (totals.USD > 0) add(root, "p", "usd-warning", USD_WARNING);
   add(root, "h2", "block-title", "Próximos 6 meses");
   forecastList(root, nextMonths().map((entry) => ({
@@ -310,7 +325,9 @@ function renderSubscriptions(subscriptions) {
   for (const subscription of subscriptions) {
     const row = add(list, "li", "manage-row");
     const text = add(row, "div", "manage-copy");
-    add(text, "span", "row-title", subscription.name);
+    const title = add(text, "span", "row-title");
+    title.textContent = subscription.name;
+    if (paidOnCard(subscription)) add(title, "span", "card-badge", "En tarjeta");
     const meta = add(text, "span", "row-meta");
     meta.append(amountNode(Number(subscription.amount), subscription.currency));
     meta.append(` · ${subscription.frequency} · próximo cobro ${monthYear(subscription.next_charge_on)}`);
@@ -479,6 +496,7 @@ function startSubEdit(subscription) {
   field(form, "currency").value = subscription.currency;
   field(form, "frequency").value = subscription.frequency;
   field(form, "next_charge_on").value = String(subscription.next_charge_on).slice(0, 10);
+  field(form, "on_card").checked = paidOnCard(subscription);
   document.getElementById("sub-submit").textContent = "Guardar cambios";
 }
 
@@ -489,6 +507,7 @@ function resetSubForm() {
   field(form, "currency").value = "ARS";
   field(form, "frequency").value = "mensual";
   field(form, "next_charge_on").value = todayIso();
+  field(form, "on_card").checked = false;
   document.getElementById("sub-submit").textContent = "Agregar suscripción";
   document.getElementById("sub-form-error").textContent = "";
 }
@@ -686,6 +705,7 @@ function wireForms() {
     const currency = field(subForm, "currency").value;
     const frequency = field(subForm, "frequency").value;
     const nextCharge = field(subForm, "next_charge_on").value;
+    const onCard = Boolean(field(subForm, "on_card").checked);
     if (!name) {
       error.textContent = "Poné un nombre.";
       return;
@@ -711,6 +731,7 @@ function wireForms() {
       currency,
       frequency,
       next_charge_on: nextCharge,
+      on_card: onCard,
       created_at: existing?.created_at,
     }));
     resetSubForm();

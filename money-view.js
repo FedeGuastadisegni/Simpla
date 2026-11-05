@@ -5,7 +5,7 @@ export function formatAmount(amount, currency) {
     minimumFractionDigits: Number.isInteger(Number(amount)) ? 0 : 2,
     maximumFractionDigits: 2,
   }).format(Number(amount));
-  return currency === "USD" ? `USD ${formatted}` : `$ ${formatted}`;
+  return currency === "USD" ? `USD ${formatted}` : `$${formatted}`;
 }
 
 export function amountNode(amount, currency) {

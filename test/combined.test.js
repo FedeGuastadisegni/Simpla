@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { combinedForecast, monthDelta } from "../combined.js";
+import { combinedForecast, monthDelta, nextMonthChange } from "../combined.js";
+import { roundMoney } from "../projections.js";
 
 // EJEMPLO. Los mismos datos de la tarjeta, los préstamos, los servicios
 // y las suscripciones. Los totales de abajo están escritos a mano.
@@ -136,6 +137,27 @@ test("EJEMPLO proyección: el préstamo decreciente baja en los seis meses", () 
     assert.equal(month.totals.ARS, totals[index]);
     assert.equal(month.totals.USD, index === 0 ? 40 : 0);
   });
+});
+
+test("una suscripción en tarjeta no infla los fijos ni la proyección", () => {
+  const base = combinedForecast(DATA, NOV, 6);
+  const data = {
+    ...DATA,
+    subscriptions: DATA.subscriptions.map((subscription) => (
+      subscription.name === "Netflix" ? { ...subscription, on_card: true } : subscription
+    )),
+  };
+  const months = combinedForecast(data, NOV, 6);
+  months.forEach((month, index) => {
+    assert.equal(month.suscripciones.ARS, 0);
+    assert.equal(month.totals.ARS, roundMoney(base[index].totals.ARS - 11999));
+    assert.equal(month.totals.USD, base[index].totals.USD);
+  });
+  const pair = combinedForecast(data, NOV, 2);
+  const change = nextMonthChange(pair[0], pair[1], data.subscriptions);
+  assert.deepEqual(change.subscriptions.map((item) => item.name), []);
+  assert.equal(change.delta.ARS, monthDelta(base[0], base[1]).ARS);
+  assert.equal(change.delta.USD, monthDelta(base[0], base[1]).USD);
 });
 
 test("EJEMPLO proyección: en diciembre baja por las cuotas que terminan", () => {

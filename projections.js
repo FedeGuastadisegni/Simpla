@@ -115,9 +115,17 @@ export function subscriptionHits(subscription, month) {
   return subscription.frequency === "mensual";
 }
 
-export function subscriptionsInMonth(subscriptions, month) {
+// Cobro que ya entra en el resumen de la tarjeta. Se sigue para el próximo
+// vencimiento, pero no se suma a los fijos ni a la proyección.
+export function paidOnCard(subscription) {
+  return subscription?.on_card === true;
+}
+
+export function subscriptionsInMonth(subscriptions, month, options = {}) {
+  const includeOnCard = options.includeOnCard === true;
   const totals = { ARS: 0, USD: 0 };
   for (const subscription of subscriptions) {
+    if (!includeOnCard && paidOnCard(subscription)) continue;
     if (!subscriptionHits(subscription, month)) continue;
     const currency = subscription.currency === "USD" ? "USD" : "ARS";
     totals[currency] += Number(subscription.amount) || 0;
@@ -272,7 +280,10 @@ export function upcomingPayments(data, todayIso) {
       date,
       day: pad(next.day),
       title: subscription.name,
-      meta: subscription.frequency === "anual" ? "Suscripción anual" : "Suscripción",
+      meta: [
+        subscription.frequency === "anual" ? "Suscripción anual" : "Suscripción",
+        paidOnCard(subscription) ? "en tarjeta" : "",
+      ].filter(Boolean).join(" · "),
       amount: Number(subscription.amount) || 0,
       currency: subscription.currency === "USD" ? "USD" : "ARS",
     });

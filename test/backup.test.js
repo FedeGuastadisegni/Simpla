@@ -82,6 +82,36 @@ test("importar no duplica: el id que ya existe se actualiza", () => {
   assert.equal(new Set(second.ops.map((op) => op.row.id)).size, 3);
 });
 
+test("el backup conserva si la suscripción va en la tarjeta", () => {
+  const tables = sample();
+  tables.subscriptions = [{
+    id: "sub-1",
+    name: "Spotify",
+    amount: 5999,
+    currency: "ARS",
+    frequency: "mensual",
+    next_charge_on: "2026-11-05",
+    on_card: true,
+    user_id: "usuario",
+  }];
+  const payload = buildExport(tables, EXPORTED_AT);
+  assert.equal(payload.data.subscriptions[0].on_card, true);
+  assert.equal(JSON.stringify(payload).includes("usuario"), false);
+  const plan = planImport(payload, {
+    cards: [],
+    card_items: [],
+    loans: [],
+    services: [],
+    service_bills: [],
+    subscriptions: [],
+    expenses: [],
+  });
+  assert.equal(plan.ok, true);
+  const row = plan.ops.find((op) => op.table === "subscriptions").row;
+  assert.equal(row.on_card, true);
+  assert.equal(row.name, "Spotify");
+});
+
 test("un archivo que no es de Simpla no se importa", () => {
   const result = validateImport({ version: 2, data: {} });
   assert.equal(result.ok, false);
