@@ -2276,3 +2276,88 @@ dialog .row-actions .btn-primary {
     margin-top: 6px;
   }
 }
+
+
+/* Category composition: a single category is a compact status, not a full donut. */
+.ring.is-single {
+  width: max-content;
+  height: auto;
+  display: flex;
+  align-items: center;
+}
+
+.ring.is-single svg {
+  display: none;
+}
+
+.ring.is-single .ring-legend {
+  position: static;
+  display: flex;
+  transform: none;
+}
+
+.ring.is-single .ring-legend li {
+  gap: 8px;
+  padding: 9px 13px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.ring.is-single .ring-legend i {
+  width: 8px;
+  height: 8px;
+}
+
+@media (min-width: 980px) {
+  #inicio > .hero {
+    min-height: 0;
+    padding: 16px 24px;
+  }
+
+  #inicio .hero-top {
+    min-height: 76px;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    align-items: center;
+    gap: 24px;
+  }
+
+  #inicio .hero-label {
+    font-size: 0.86rem;
+  }
+
+  #inicio .ring.is-multiple {
+    width: max-content;
+    height: 88px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+  }
+
+  #inicio .ring.is-multiple svg {
+    width: 88px;
+    height: 88px;
+    margin: 0;
+  }
+
+  #inicio .ring.is-multiple .ring-legend {
+    position: static;
+    max-width: 148px;
+    gap: 5px;
+    transform: none;
+    font-size: 0.68rem;
+  }
+
+  #inicio .ring.is-multiple .ring-legend li {
+    gap: 6px;
+  }
+
+  #inicio .ring.is-single .ring-legend li {
+    padding: 10px 15px;
+    font-size: 0.82rem;
+  }
+}
