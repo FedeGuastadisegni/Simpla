@@ -11,6 +11,7 @@ import {
   roundMoney,
   serviceAmountInMonth,
   serviceEstimate,
+  paidOnCard,
   subscriptionHits,
   subscriptionsInMonth,
 } from "./projections.js";
@@ -126,7 +127,7 @@ export function nextMonthChange(current, next, subscriptions = []) {
   }
 
   const due = (subscriptions || [])
-    .filter((subscription) => subscriptionHits(subscription, next.month))
+    .filter((subscription) => subscriptionHits(subscription, next.month) && !paidOnCard(subscription))
     .map((subscription) => ({
       name: subscription.name,
       amount: Number(subscription.amount) || 0,

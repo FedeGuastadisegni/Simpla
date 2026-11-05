@@ -9,6 +9,7 @@ import {
   serviceAmountInMonth,
   serviceEstimate,
   subscriptionHits,
+  paidOnCard,
   subscriptionsInMonth,
   upcomingPayments,
 } from "../projections.js";
@@ -99,6 +100,41 @@ test("EJEMPLO suscripciones: mensual todos los meses y anual solo en su mes, USD
   assert.deepEqual(subscriptionsInMonth([netflix, icloud], NOV), { ARS: 11999, USD: 20 });
   assert.deepEqual(subscriptionsInMonth([netflix, icloud], DEC), { ARS: 11999, USD: 0 });
   assert.deepEqual(subscriptionsInMonth([netflix, icloud], NOV_NEXT), { ARS: 11999, USD: 20 });
+});
+
+test("suscripción en tarjeta: se sigue el cobro y no entra en el total del mes", () => {
+  const spotify = {
+    name: "Spotify",
+    amount: 5999,
+    currency: "ARS",
+    frequency: "mensual",
+    next_charge_on: "2026-11-05",
+    on_card: true,
+  };
+  const icloud = {
+    name: "iCloud",
+    amount: 20,
+    currency: "USD",
+    frequency: "anual",
+    next_charge_on: "2026-11-01",
+    on_card: true,
+  };
+  const netflix = {
+    name: "Netflix",
+    amount: 11999,
+    currency: "ARS",
+    frequency: "mensual",
+    next_charge_on: "2026-11-05",
+  };
+  assert.equal(paidOnCard(spotify), true);
+  assert.equal(paidOnCard(netflix), false);
+  assert.equal(subscriptionHits(spotify, NOV), true);
+  assert.deepEqual(subscriptionsInMonth([spotify, icloud, netflix], NOV), { ARS: 11999, USD: 0 });
+  assert.deepEqual(subscriptionsInMonth([spotify, icloud, netflix], DEC), { ARS: 11999, USD: 0 });
+  assert.deepEqual(
+    subscriptionsInMonth([spotify, icloud], NOV, { includeOnCard: true }),
+    { ARS: 5999, USD: 20 },
+  );
 });
 
 test("EJEMPLO servicios: 10% promedio de 4 facturas, en cadena desde la última", () => {

@@ -20,7 +20,7 @@ function money(amount, currency) {
     minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
     maximumFractionDigits: 2,
   }).format(amount);
-  return currency === "USD" ? `USD ${formatted}` : `$ ${formatted}`;
+  return currency === "USD" ? `USD ${formatted}` : `$${formatted}`;
 }
 
 function shortDate(iso) {

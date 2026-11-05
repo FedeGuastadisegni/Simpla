@@ -1,14 +1,14 @@
 import { listRows, onData } from "./db.js";
 import { amountNode, putAmount } from "./money-view.js";
 import { combinedForecast, monthDelta, nextMonthChange } from "./combined.js";
-import { roundMoney, upcomingPayments } from "./projections.js";
+import { paidOnCard, roundMoney, upcomingPayments } from "./projections.js";
 
 function money(amount, currency) {
   const formatted = new Intl.NumberFormat("es-AR", {
     minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
     maximumFractionDigits: 2,
   }).format(amount);
-  return currency === "USD" ? `USD ${formatted}` : `$ ${formatted}`;
+  return currency === "USD" ? `USD ${formatted}` : `$${formatted}`;
 }
 
 function currentMonth() {
@@ -69,8 +69,19 @@ const CATS = [
   { key: "tarjeta", label: "Tarjeta", slice: "--slice-1", value: (month) => Number(month.tarjeta?.ARS) || 0, meta: (data) => cuenta(data.cardItems.length, "consumo", "consumos") },
   { key: "prestamos", label: "Préstamos", slice: "--slice-2", value: (month) => Number(month.prestamos) || 0, meta: (data) => cuenta(data.loans.length, "préstamo", "préstamos") },
   { key: "servicios", label: "Servicios", slice: "--slice-3", value: (month) => Number(month.servicios) || 0, meta: (data) => cuenta(data.services.length, "servicio", "servicios") },
-  { key: "suscripciones", label: "Suscripciones", slice: "--slice-4", value: (month) => Number(month.suscripciones?.ARS) || 0, meta: (data) => cuenta(data.subscriptions.length, "suscripción", "suscripciones") },
+  { key: "suscripciones", label: "Suscripciones", slice: "--slice-4", value: (month) => Number(month.suscripciones?.ARS) || 0, meta: subscriptionMeta },
 ];
+
+function subscriptionMeta(data) {
+  const all = data.subscriptions || [];
+  const onCard = all.filter((subscription) => paidOnCard(subscription)).length;
+  const counted = all.length - onCard;
+  if (all.length === 0) return "";
+  if (!counted) return onCard === 1 ? "1 en tarjeta" : `${onCard} en tarjeta`;
+  const base = cuenta(counted, "suscripción", "suscripciones");
+  if (!onCard) return base;
+  return `${base} · ${onCard} en tarjeta`;
+}
 
 function cuenta(count, one, many) {
   const total = Number(count) || 0;
@@ -184,8 +195,12 @@ function paintInicio(months, data) {
   }
   const now = months[0];
   display.textContent = money(now.totals.ARS, "ARS");
-  usd.hidden = false;
-  putAmount(usd, now.totals.USD, "USD");
+  if (now.totals.USD > 0) {
+    usd.hidden = false;
+    putAmount(usd, now.totals.USD, "USD");
+  } else {
+    usd.hidden = true;
+  }
   next.hidden = false;
   next.textContent = "Ver cambios y sugerencias";
   paintRing(now);

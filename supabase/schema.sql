@@ -183,12 +183,16 @@ create table if not exists public.subscriptions (
   currency text not null check (currency in ('ARS', 'USD')),
   frequency text not null check (frequency in ('mensual', 'anual')),
   next_charge_on date not null,
+  on_card boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 comment on column public.subscriptions.currency is
   'ARS o USD. Los USD se guardan y se muestran en USD, sin convertir a pesos.';
+
+comment on column public.subscriptions.on_card is
+  'Si es true, el cobro ya entra en la tarjeta: se sigue el próximo vencimiento, pero no se suma a los fijos ni a la proyección.';
 
 -- Gastos diarios. Vacía hasta la v2.
 -- source: manual, notificacion o mail.

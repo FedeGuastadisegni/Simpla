@@ -16,7 +16,7 @@ import { listRows, onData, queueChange, startData, useLocalDemoStore } from "./d
 import { renderPlanes, seedPlansIfEmpty, setPlanUser, watchPlans } from "./planes.js";
 import { renderProyeccion, watchProyeccion } from "./proyeccion.js";
 import { setStatementUser } from "./resumen.js";
-import { DEMO_USER, isLocalDemo, renderTarjeta, seedExampleIfEmpty, setCardUser, watchCardData } from "./tarjeta.js";
+import { DEMO_USER, focusManualCharge, isLocalDemo, renderTarjeta, seedExampleIfEmpty, setCardUser, watchCardData } from "./tarjeta.js";
 
 const SECTIONS = {
   inicio: "Simpla",
@@ -28,7 +28,8 @@ const SECTIONS = {
   usuario: "Usuario",
 };
 
-const links = document.querySelectorAll(".nav a");
+const links = document.querySelectorAll(".nav a, #more-sheet a");
+const MORE_SECTIONS = new Set(["prestamos", "servicios", "suscripciones", "proyeccion"]);
 const title = document.getElementById("section-title");
 const login = document.getElementById("login");
 const frame = document.querySelector(".frame");
@@ -64,8 +65,17 @@ function syncNav() {
       link.removeAttribute("aria-current");
     }
   }
+  const more = document.getElementById("nav-more");
+  if (more) {
+    if (MORE_SECTIONS.has(id)) more.setAttribute("aria-current", "page");
+    else more.removeAttribute("aria-current");
+  }
+  title.hidden = id === "inicio";
+  const monthNav = document.getElementById("month-nav");
+  if (monthNav) monthNav.hidden = id !== "inicio";
   title.textContent = SECTIONS[id];
   document.title = id === "inicio" ? "Simpla" : "Simpla · " + SECTIONS[id];
+  closeSheets();
 }
 
 function capitalize(value) {
@@ -78,6 +88,9 @@ function fillCalendar() {
   const label = capitalize(longMonth);
   for (const node of document.querySelectorAll("[data-month]")) {
     node.textContent = label;
+  }
+  for (const node of document.querySelectorAll("[data-year]")) {
+    node.textContent = String(now.getFullYear());
   }
   for (const node of document.querySelectorAll("[data-year]")) {
     node.textContent = String(now.getFullYear());
@@ -164,6 +177,47 @@ document.getElementById("sign-out").addEventListener("click", () => {
   client.auth.signOut();
 });
 
+const backdrop = document.getElementById("sheet-backdrop");
+const moreSheet = document.getElementById("more-sheet");
+const addSheet = document.getElementById("add-sheet");
+
+function closeSheets() {
+  for (const sheet of [moreSheet, addSheet]) {
+    if (sheet) sheet.hidden = true;
+  }
+  if (backdrop) backdrop.hidden = true;
+  document.getElementById("nav-more")?.setAttribute("aria-expanded", "false");
+  document.getElementById("nav-fab")?.setAttribute("aria-expanded", "false");
+}
+
+function openSheet(sheet, button) {
+  const willOpen = sheet?.hidden !== false;
+  closeSheets();
+  if (!sheet || !willOpen) return;
+  sheet.hidden = false;
+  if (backdrop) backdrop.hidden = false;
+  button?.setAttribute("aria-expanded", "true");
+}
+
+document.getElementById("nav-more")?.addEventListener("click", () => {
+  openSheet(moreSheet, document.getElementById("nav-more"));
+});
+
+document.getElementById("nav-fab")?.addEventListener("click", () => {
+  openSheet(addSheet, document.getElementById("nav-fab"));
+});
+
+backdrop?.addEventListener("click", closeSheets);
+
+document.getElementById("add-card-charge")?.addEventListener("click", () => {
+  closeSheets();
+  focusManualCharge();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeSheets();
+});
+
 window.addEventListener("hashchange", () => {
   if (!frame.hidden) syncNav();
 });
@@ -246,12 +300,12 @@ function dueWhen(alert) {
   return `${dayLabel} ${monthLabel} · ${when}`;
 }
 
-function paintDueSoon(alerts, enabled) {
+function paintDueSoon(alerts) {
   const section = document.getElementById("due-soon");
   const list = document.getElementById("due-soon-list");
   if (!section || !list) return;
   list.replaceChildren();
-  if (!enabled || alerts.length === 0) {
+  if (alerts.length === 0) {
     section.hidden = true;
     return;
   }
@@ -259,19 +313,23 @@ function paintDueSoon(alerts, enabled) {
   for (const alert of alerts) {
     const item = document.createElement("li");
     item.className = alert.days <= 7 ? "due-row is-alert" : "due-row";
-    const share = Math.max(0.18, 1 - (Number(alert.days) || 0) / 30);
+    const share = Math.max(0.22, 1 - (Number(alert.days) || 0) / 21);
     item.style.setProperty("--share", share.toFixed(3));
     const copy = document.createElement("div");
     copy.className = "due-copy";
     const title = document.createElement("p");
     title.className = "row-title";
-    title.textContent = alert.text;
+    title.textContent = alert.title || alert.text;
+    const meta = document.createElement("p");
+    meta.className = "row-meta";
+    meta.textContent = alert.detail || "";
+    if (!alert.detail) meta.hidden = true;
     const bar = document.createElement("span");
     bar.className = "due-bar";
     bar.setAttribute("aria-hidden", "true");
     const fill = document.createElement("span");
     bar.append(fill);
-    copy.append(title, bar);
+    copy.append(title, meta, bar);
     const when = document.createElement("span");
     when.className = "due-when";
     when.textContent = dueWhen(alert);
@@ -305,8 +363,8 @@ const notifiedToday = new Set();
 
 async function refreshAlerts() {
   const prefs = readAlertPrefs(localStorage);
-  if (frame.hidden || !prefs.enabled) {
-    paintDueSoon([], false);
+  if (frame.hidden) {
+    paintDueSoon([]);
     return;
   }
   const [cards, services, subscriptions] = await Promise.all([
@@ -315,8 +373,10 @@ async function refreshAlerts() {
     listRows("subscriptions"),
   ]);
   const today = todayIso(new Date());
+  const board = dueSoon({ cards, services, subscriptions }, today, 21);
+  paintDueSoon(board);
+  if (!prefs.enabled) return;
   const alerts = dueSoon({ cards, services, subscriptions }, today, prefs.daysAhead);
-  paintDueSoon(alerts, true);
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
   const shown = readShown(localStorage);
   const fresh = freshAlerts(alerts, shown, today).filter((alert) => !notifiedToday.has(`${today}:${alert.id}`));

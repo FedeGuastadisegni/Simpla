@@ -128,6 +128,8 @@ export function dueSoon(data, today, daysAhead = 3) {
         kind: "cierre",
         date: closing,
         days: closingIn,
+        title: name,
+        detail: "Cierre",
         text: `${name} cierra ${when(closingIn, closing, false)}`,
       });
     }
@@ -139,6 +141,8 @@ export function dueSoon(data, today, daysAhead = 3) {
         kind: "vencimiento",
         date: due,
         days: dueIn,
+        title: name,
+        detail: "Vencimiento",
         text: `${name} vence ${when(dueIn, due, false)}`,
       });
     }
@@ -155,6 +159,8 @@ export function dueSoon(data, today, daysAhead = 3) {
       kind: "servicio",
       date,
       days,
+      title: service.name,
+      detail: "Factura",
       text: `${service.name} vence ${when(days, date, false)}`,
     });
   }
@@ -169,6 +175,8 @@ export function dueSoon(data, today, daysAhead = 3) {
       kind: "suscripcion",
       date,
       days,
+      title: subscription.name,
+      detail: subscription.on_card === true ? "Cobro · en tarjeta" : "Cobro",
       text: `${subscription.name} cobra ${when(days, date, true)}`,
     });
   }
