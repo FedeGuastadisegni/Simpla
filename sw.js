@@ -1,5 +1,5 @@
 /* Shell de Simpla. Subí CACHE cuando cambien los archivos precacheados. */
-const CACHE = "simpla-shell-v9";
+const CACHE = "simpla-shell-v12";
 
 const FILES = [
   "index.html",
@@ -36,6 +36,9 @@ const FILES = [
   "fonts/bricolage-grotesque-latin-600-normal.woff2",
   "fonts/bricolage-grotesque-latin-800-normal.woff2",
   "fonts/instrument-serif-latin-400-italic.woff2",
+  "fonts/inter-latin-400-normal.woff2",
+  "fonts/inter-latin-600-normal.woff2",
+  "fonts/inter-latin-700-normal.woff2",
 ];
 
 self.addEventListener("install", (event) => {

@@ -53,7 +53,7 @@ function currentMonth() {
 function monthName(month, style = "long") {
   const date = new Date(month.year, month.month, 1);
   const text = new Intl.DateTimeFormat("es-AR", { month: style }).format(date).replace(".", "");
-  if (style === "short") return text.toLocaleUpperCase("es-AR");
+  if (style === "short") return text.charAt(0).toLocaleUpperCase("es-AR") + text.slice(1);
   return text;
 }
 
