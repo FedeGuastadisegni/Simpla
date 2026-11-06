@@ -303,6 +303,13 @@
             <p class="kicker">Revisión</p>
             <p id="pdf-summary"></p>
             <p id="pdf-dates" class="service-note"></p>
+            <label>Cierre del resumen
+              <input id="pdf-closing-on" type="date" required>
+            </label>
+            <label>Vencimiento del resumen
+              <input id="pdf-due-on" type="date" required>
+            </label>
+            <p class="hint">Estos consumos se suman al mes del vencimiento. La fecha de compra se conserva por separado.</p>
             <p id="pdf-balances" class="service-note"></p>
             <label>Nombre de la tarjeta
               <input id="pdf-card-name" type="text" maxlength="80" autocomplete="off">
@@ -365,6 +372,10 @@
             <label>Cuota actual
               <input name="installment_number" type="number" min="1" inputmode="numeric" placeholder="Vacío si es un pago">
             </label>
+            <label>Vencimiento de la cuota indicada o del consumo
+              <input name="statement_due_on" type="date">
+            </label>
+            <p class="hint">Para una compra nueva se estima con el cierre y el vencimiento de la tarjeta. Si cargás una cuota en curso, indicá su vencimiento. El monto es el de cada cuota.</p>
             <label>Cuotas totales
               <input name="installment_count" type="number" min="1" inputmode="numeric" placeholder="Vacío si es un pago">
             </label>

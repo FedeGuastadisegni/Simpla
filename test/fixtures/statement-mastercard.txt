@@ -1,4 +1,4 @@
-BBVA - Resumen de tarjeta (DATOS DE EJEMPLO)
+Emisor - Resumen de tarjeta (DATOS DE EJEMPLO)
 Titular: JUAN EJEMPLO
 Domicilio: Calle Falsa 123, Ciudad Ejemplo
 CUIT: 20-00000000-0

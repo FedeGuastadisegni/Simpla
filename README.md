@@ -2,16 +2,16 @@
 
 Simpla es una aplicación web personal para organizar las finanzas del día a día en Argentina y anticipar compromisos de los próximos seis meses.
 
-La aplicación ya cuenta con persistencia y sincronización: permite registrar tarjetas y consumos en cuotas, préstamos, servicios, facturas, suscripciones y gastos; consultar proyecciones y próximos vencimientos; e importar consumos de resúmenes de BBVA.
+La aplicación ya cuenta con persistencia y sincronización: permite registrar tarjetas y consumos en cuotas, préstamos, servicios, facturas y suscripciones; consultar proyecciones y próximos vencimientos; e importar consumos de resúmenes de tarjeta.
 
 ## Funcionalidades
 
 - **Tarjetas:** tarjetas, consumos, cuotas y fechas de cierre.
 - **Préstamos:** seguimiento de cuotas y proyecciones de amortización.
 - **Servicios y suscripciones:** registro de importes, períodos y próximos cargos.
-- **Gastos:** registro de egresos en pesos o dólares.
+- **Gastos diarios:** estructura de datos preparada; la pantalla de carga y la captura automática están pendientes.
 - **Proyecciones:** vista combinada de compromisos y vencimientos para los próximos seis meses.
-- **Importación:** lectura de resúmenes BBVA Visa y Mastercard desde PDF, además de importación desde imágenes.
+- **Importación:** lectura de formatos de resumen de Tarjeta de Crédito VISA y Tarjeta de Crédito MasterCard desde PDF, además de importación desde imágenes. Otros diseños de resumen pueden requerir ajustes del lector.
 - **Alertas:** próximos pagos y cambios relevantes.
 - **Respaldo:** exportación e importación de copias de seguridad en JSON.
 
@@ -70,3 +70,13 @@ Si la página no aparece, en el repositorio entrá a **Settings → Pages → Bu
 ## Documentación de Supabase
 
 La configuración de autenticación, base de datos y políticas de acceso está documentada en [SUPABASE.md](SUPABASE.md).
+
+## Períodos de tarjeta
+
+Los compromisos se agrupan por mes de pago: un resumen con cierre en octubre y vencimiento en noviembre integra los fijos de noviembre. La fecha original de compra y el vencimiento de la cuota indicada se guardan por separado. Las compras posteriores al cierre se estiman para el siguiente período; al importar se confirman las fechas reales.
+
+La revisión permite corregir cierre y vencimiento antes de confirmar. Una cuota en curso cargada manualmente requiere indicar su vencimiento. Los consumos antiguos sin período se mantienen y se señalan como estimados: reimportá el resumen o editá la fecha para confirmarlos.
+
+Los documentos se procesan en memoria en el navegador. No se guardan ni se suben PDF, imágenes o el texto completo extraído: solo se persisten los registros confirmados y las fechas necesarias para proyectarlos.
+
+El modelo admite vínculos opcionales entre consumos y suscripciones o facturas. La clasificación en la revisión de importación y la anticipación de cargos recurrentes se implementarán en una siguiente etapa.

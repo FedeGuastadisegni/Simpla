@@ -1,4 +1,4 @@
-// Resumen BBVA, a partir del texto ya extraído.
+// Resúmenes de tarjeta, a partir del texto ya extraído.
 // Mastercard trae la fecha como dd/mm/aaaa en la misma línea.
 // Visa trae dd-Mon-aa (Abr, Ago, Dic). En el PDF cada columna
 // llega en su propia línea; una captura suele traer la fila entera.
@@ -14,6 +14,7 @@
 // que pasa de N/T a (N+1)/T actualiza la misma fila.
 
 import { redactLongNumbers } from "./privacy.js";
+import { parseIsoDate } from "./card-math.js";
 
 const STOP = /^(impuestos\b|cuotas a vencer\b)/i;
 const TOTAL_CONSUMOS = /^total consumos\b/i;
@@ -120,11 +121,6 @@ function brandOf(name) {
   return "";
 }
 
-function bankOf(name) {
-  if (name.includes("bbva")) return "bbva";
-  return "";
-}
-
 function productName(lines) {
   const head = [];
   for (const line of lines) {
@@ -132,33 +128,28 @@ function productName(lines) {
     head.push(line);
   }
   const blob = foldName(head.join(" "));
-  const bank = blob.includes("bbva") ? "BBVA" : "";
   let brand = "";
-  if (blob.includes("mastercard")) brand = "Mastercard";
-  else if (/\bvisa\b/.test(blob)) brand = "Visa";
+  if (blob.includes("mastercard")) brand = "MasterCard";
+  else if (/\bvisa\b/.test(blob)) brand = "VISA";
   else if (blob.includes("amex") || blob.includes("american express")) brand = "Amex";
-  return [bank, brand].filter(Boolean).join(" ") || "Tarjeta";
+  return brand ? `Tarjeta de Crédito ${brand}` : "Tarjeta de Crédito";
 }
 
 export function matchCard(cards, suggestedName) {
   const target = foldName(suggestedName);
   if (!target) return null;
   const targetBrand = brandOf(target);
-  const targetBank = bankOf(target);
-  let loose = null;
-  for (const card of cards) {
+  const exact = cards.filter((card) => foldName(card.name) === target);
+  if (exact.length) return exact.length === 1 ? exact[0] : null;
+  const candidates = cards.filter((card) => {
     const name = foldName(card.name);
-    if (!name) continue;
-    if (name === target) return card;
+    if (!name) return false;
     const cardBrand = brandOf(name);
-    const cardBank = bankOf(name);
-    if (targetBrand && cardBrand && targetBrand !== cardBrand) continue;
-    if (targetBank && cardBank && targetBank !== cardBank) continue;
-    if (targetBank && cardBank === targetBank && targetBrand && cardBrand === targetBrand) return card;
+    if (targetBrand && cardBrand && targetBrand !== cardBrand) return false;
     const contains = name.includes(target) || target.includes(name);
-    if (contains && (!targetBrand || !cardBrand || cardBrand === targetBrand)) loose = loose || card;
-  }
-  return loose;
+    return contains || Boolean(targetBrand && cardBrand === targetBrand);
+  });
+  return candidates.length === 1 ? candidates[0] : null;
 }
 
 function buildCharge(spentOn, description, amount, currency) {
@@ -273,7 +264,7 @@ export function normalizeOcrText(raw) {
   return text;
 }
 
-export function parseBbvaStatement(text) {
+export function parseCardStatement(text) {
   const lines = String(text ?? "")
     .split(/\r?\n/)
     .map((line) => line.replace(/\s+/g, " ").trim())
@@ -317,7 +308,18 @@ function cleanCharge(row, cardId) {
   let installmentCount = row.installment_count == null || row.installment_count === "" ? null : Number(row.installment_count);
   if (!description) return { ok: false, error: "Hay un consumo sin descripción." };
   if (!Number.isFinite(amount) || amount < 0) return { ok: false, error: "Hay un monto que no cierra." };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(spentOn)) return { ok: false, error: "Hay una fecha que no cierra." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(spentOn) || !parseIsoDate(spentOn)) return { ok: false, error: "Hay una fecha que no cierra." };
+  const period = {};
+  for (const field of ["statement_closes_on", "statement_due_on"]) {
+    if (row[field] == null || row[field] === "") continue;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(row[field]) || !parseIsoDate(row[field])) {
+      return { ok: false, error: "Revisá el cierre y el vencimiento del resumen." };
+    }
+    period[field] = row[field];
+  }
+  if (period.statement_closes_on && (!period.statement_due_on || period.statement_due_on < period.statement_closes_on)) {
+    return { ok: false, error: "El vencimiento debe ser igual o posterior al cierre." };
+  }
   if (installmentNumber == null && installmentCount == null) {
     installmentNumber = null;
     installmentCount = null;
@@ -334,6 +336,7 @@ function cleanCharge(row, cardId) {
       spent_on: spentOn,
       installment_number: installmentNumber,
       installment_count: installmentCount,
+      ...period,
     },
   };
 }
@@ -387,6 +390,22 @@ function writtenByHand(stored, incoming) {
 
 const HAND_REASON = "Se vinculó con un consumo que cargaste a mano.";
 
+function periodMatch(stored, incoming) {
+  return !stored.statement_due_on || !incoming.statement_due_on
+    || stored.statement_due_on.slice(0, 7) === incoming.statement_due_on.slice(0, 7);
+}
+
+function confirmPeriod(stored, incoming) {
+  if (!incoming.statement_due_on) return null;
+  if (stored.statement_due_on && stored.statement_due_on > incoming.statement_due_on) {
+    return { kind: "loaded", item: stored, reason: "Ya tiene un período posterior confirmado." };
+  }
+  if (stored.statement_due_on !== incoming.statement_due_on || stored.statement_closes_on !== incoming.statement_closes_on) {
+    return { kind: "link", item: stored, reason: "Se confirmó el período de pago de este consumo." };
+  }
+  return null;
+}
+
 function exactCopy(item, incoming) {
   return sameMoney(item, incoming)
     && String(item.spent_on).slice(0, 10) === incoming.spent_on
@@ -407,9 +426,11 @@ function matchExistingCharge(incoming, pool) {
   if (repeat) return { kind: "loaded", item: repeat, reason: "Se repite en este resumen." };
 
   if (incoming.installment_number == null) {
-    const hits = open.filter((item) => item.installment_number == null && sameMoney(item, incoming) && datesClose(item.spent_on, incoming.spent_on));
+    const hits = open.filter((item) => item.installment_number == null && sameMoney(item, incoming) && datesClose(item.spent_on, incoming.spent_on) && periodMatch(item, incoming));
     if (!hits.length) return null;
     const hit = closest(hits, incoming);
+    const period = confirmPeriod(hit, incoming);
+    if (period) return period;
     if (!writtenByHand(hit, incoming)) return { kind: "loaded", item: hit, reason: "Mismo pago, misma fecha." };
     return { kind: "link", item: hit, manual: true, reason: HAND_REASON };
   }
@@ -418,6 +439,8 @@ function matchExistingCharge(incoming, pool) {
   const series = candidates.filter((item) => item.installment_number != null && Number(item.installment_count) === incoming.installment_count);
   const exact = series.find((item) => Number(item.installment_number) === incoming.installment_number);
   if (exact) {
+    const period = confirmPeriod(exact, incoming);
+    if (period) return period;
     if (exact.description === incoming.description) {
       return { kind: "loaded", item: exact, reason: `La cuota ${incoming.installment_number}/${incoming.installment_count} ya está.` };
     }

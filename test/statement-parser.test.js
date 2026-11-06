@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { matchCard, normalizeOcrText, parseBbvaStatement, planStatementImport } from "../bbva.js";
+import { matchCard, normalizeOcrText, parseCardStatement, planStatementImport } from "../statement-parser.js";
 
-const TEXT = readFileSync(new URL("./fixtures/bbva-ejemplo.txt", import.meta.url), "utf8");
-const VISA = readFileSync(new URL("./fixtures/bbva-visa-signature.txt", import.meta.url), "utf8");
+const TEXT = readFileSync(new URL("./fixtures/statement-mastercard.txt", import.meta.url), "utf8");
+const VISA = readFileSync(new URL("./fixtures/statement-visa.txt", import.meta.url), "utf8");
 
-test("EJEMPLO BBVA: extrae los consumos y deja afuera titular, CUIT, cuenta, impuestos y cuotas a vencer", () => {
-  const parsed = parseBbvaStatement(TEXT);
+test("EJEMPLO: extrae los consumos y deja afuera titular, CUIT, cuenta, impuestos y cuotas a vencer", () => {
+  const parsed = parseCardStatement(TEXT);
   const dumped = JSON.stringify(parsed);
-  assert.equal(parsed.productName, "BBVA Mastercard");
+  assert.equal(parsed.productName, "Tarjeta de Crédito MasterCard");
   assert.equal(parsed.closingDay, 15);
   assert.equal(parsed.closingDate, "2026-10-15");
   assert.equal(parsed.dueDay, 1);
@@ -51,7 +51,7 @@ test("EJEMPLO BBVA: extrae los consumos y deja afuera titular, CUIT, cuenta, imp
   }
 });
 
-test("EJEMPLO BBVA: no duplica y sanea números largos", () => {
+test("EJEMPLO: no duplica y sanea números largos", () => {
   const rows = [
     {
       selected: true,
@@ -90,7 +90,7 @@ test("EJEMPLO BBVA: no duplica y sanea números largos", () => {
   assert.equal(second.rows[1].status, "ignored");
 });
 
-test("EJEMPLO BBVA: la cuota siguiente actualiza el mismo consumo", () => {
+test("EJEMPLO: la cuota siguiente actualiza el mismo consumo", () => {
   const stored = [{
     id: "swiss",
     card_id: "card-1",
@@ -290,14 +290,14 @@ test("se puede forzar un alta si el vínculo está mal", () => {
   assert.equal(plan.rows[0].hadMatch, true);
 });
 
-test("EJEMPLO BBVA: reutiliza una tarjeta parecida y no usa una Visa distinta", () => {
+test("EJEMPLO: reutiliza una tarjeta parecida y no usa una Visa distinta", () => {
   const cards = [
     { id: "visa", name: "Visa ejemplo" },
-    { id: "bbva", name: "Mi BBVA Mastercard" },
+    { id: "emisor", name: "Mi Tarjeta de Crédito MasterCard" },
   ];
-  assert.equal(matchCard(cards, "BBVA Mastercard").id, "bbva");
-  assert.equal(matchCard([{ id: "visa", name: "Visa ejemplo" }], "BBVA Mastercard"), null);
-  assert.equal(matchCard([{ id: "same", name: "BBVA Mastercard" }], "bbva mastercard").id, "same");
+  assert.equal(matchCard(cards, "Tarjeta de Crédito MasterCard").id, "emisor");
+  assert.equal(matchCard([{ id: "visa", name: "Visa ejemplo" }], "Tarjeta de Crédito MasterCard"), null);
+  assert.equal(matchCard([{ id: "same", name: "Tarjeta de Crédito MasterCard" }], "tarjeta de credito mastercard").id, "same");
 });
 
 const OCR_EJEMPLO = `
@@ -313,9 +313,9 @@ IIBB CABA 450,00
 `;
 
 test("EJEMPLO OCR: el texto de una captura entra al mismo parser y no inventa impuestos", () => {
-  const parsed = parseBbvaStatement(normalizeOcrText(OCR_EJEMPLO));
+  const parsed = parseCardStatement(normalizeOcrText(OCR_EJEMPLO));
   const dumped = JSON.stringify(parsed.charges);
-  assert.equal(parsed.productName, "Visa");
+  assert.equal(parsed.productName, "Tarjeta de Crédito VISA");
   assert.equal(parsed.closingDate, "2026-10-15");
   assert.equal(parsed.dueDate, "2026-11-01");
   assert.equal(parsed.charges.length, 2);
@@ -327,13 +327,13 @@ test("EJEMPLO OCR: el texto de una captura entra al mismo parser y no inventa im
   assert.equal(dumped.includes("JUAN EJEMPLO"), false);
   assert.equal(dumped.includes("20-00000000-0"), false);
   assert.equal(dumped.includes("IIBB"), false);
-  assert.equal(parseBbvaStatement(normalizeOcrText("hola esto no es un resumen")).charges.length, 0);
+  assert.equal(parseCardStatement(normalizeOcrText("hola esto no es un resumen")).charges.length, 0);
 });
 
 test("Visa Signature: lee los consumos del PDF (columnas separadas) y deja afuera pagos, impuestos y titular", () => {
-  const parsed = parseBbvaStatement(VISA);
+  const parsed = parseCardStatement(VISA);
   const dumped = JSON.stringify(parsed);
-  assert.equal(parsed.productName, "BBVA Visa");
+  assert.equal(parsed.productName, "Tarjeta de Crédito VISA");
   assert.equal(parsed.closingDay, 29);
   assert.equal(parsed.closingDate, "2026-10-29");
   assert.equal(parsed.dueDay, 11);
@@ -385,7 +385,7 @@ test("Visa Signature: lee los consumos del PDF (columnas separadas) y deja afuer
 // NETFLIX no está en el resumen: la columna dólares de este PDF viene vacía.
 const OCR_VISA = `
 Visa
-Banco BBVA
+Banco Emisor
 CIERRE ACTUAL 29 - Oct - 26
 VENCIMIENTO ACTUAL
 11 - Nov - 26
@@ -403,8 +403,8 @@ Impuestos, cargos e intereses
 `;
 
 test("Visa Signature: el texto de una captura entra al mismo parser", () => {
-  const parsed = parseBbvaStatement(normalizeOcrText(OCR_VISA));
-  assert.equal(parsed.productName, "BBVA Visa");
+  const parsed = parseCardStatement(normalizeOcrText(OCR_VISA));
+  assert.equal(parsed.productName, "Tarjeta de Crédito VISA");
   assert.equal(parsed.closingDate, "2026-10-29");
   assert.equal(parsed.dueDate, "2026-11-11");
   assert.equal(parsed.nextClosing, "2026-11-26");

@@ -1,4 +1,4 @@
-import { forecastMonths, monthSummary, sumByCurrency } from "./card-math.js";
+import { forecastMonths, monthSummary, parseIsoDate, purchasePeriod, sumByCurrency } from "./card-math.js";
 import { amountNode, putAmount } from "./money-view.js";
 import { listRows, onData, queueChange } from "./db.js";
 import { redactLongNumbers } from "./privacy.js";
@@ -179,6 +179,12 @@ function renderSummary(card, items) {
   due.textContent = card.closing_day ? `Vence el ${card.due_day} · cierra el ${card.closing_day}` : `Vence el ${card.due_day}`;
   const month = currentMonth();
   const summary = monthSummary(items, [card], month);
+  if (card.last_closing_on && card.last_due_on) {
+    line(root, `Último período confirmado: cierre ${card.last_closing_on} · vence ${card.last_due_on}. Los totales se agrupan por mes de pago.`, "service-note");
+  }
+  if (items.some((item) => !item.statement_due_on)) {
+    line(root, "Hay consumos anteriores sin período confirmado. Los importes son estimados: reimportá el resumen o editá el vencimiento de la cuota indicada.", "service-note");
+  }
   const hero = document.createElement("p");
   hero.className = "display";
   hero.textContent = money(summary.totals.ARS, "ARS");
@@ -365,6 +371,7 @@ function startItemEdit(item) {
   field(form, "spent_on").value = String(item.spent_on).slice(0, 10);
   field(form, "installment_number").value = item.installment_number ?? "";
   field(form, "installment_count").value = item.installment_count ?? "";
+  field(form, "statement_due_on").value = item.statement_due_on ?? "";
   document.getElementById("item-submit").textContent = "Guardar cambios";
   form.querySelector("[name=description]").focus();
 }
@@ -431,6 +438,7 @@ function wireForms() {
       ? (await listRows("cards")).find((card) => card.id === editingCardId)
       : null;
     await queueChange("cards", editingCardId ? "update" : "insert", stamp({
+      ...existing,
       id,
       user_id: userId,
       name,
@@ -486,7 +494,25 @@ function wireForms() {
     const existing = editingItemId
       ? (await listRows("card_items")).find((item) => item.id === editingItemId)
       : null;
+    const explicitDue = field(itemForm, "statement_due_on").value;
+    if (explicitDue && !parseIsoDate(explicitDue)) {
+      error.textContent = "Revisá la fecha de vencimiento.";
+      return;
+    }
+    if (installmentNumber > 1 && !explicitDue) {
+      error.textContent = "Indicá el vencimiento de la cuota actual para ubicarla en el mes correcto.";
+      return;
+    }
+    const card = cards.find((row) => row.id === cardId);
+    const period = explicitDue
+      ? { statement_due_on: explicitDue, statement_closes_on: existing?.statement_due_on === explicitDue ? existing.statement_closes_on ?? null : null }
+      : purchasePeriod(spentOn, card);
+    if (!period) {
+      error.textContent = "Indicá el vencimiento del consumo o completá el cierre de la tarjeta.";
+      return;
+    }
     await queueChange("card_items", editingItemId ? "update" : "insert", stamp({
+      ...existing,
       id,
       user_id: userId,
       card_id: cardId,
@@ -496,6 +522,7 @@ function wireForms() {
       spent_on: spentOn,
       installment_number: installmentNumber,
       installment_count: installmentCount,
+      ...period,
       created_at: existing?.created_at,
     }));
     selectedCardId = cardId;

@@ -1,7 +1,7 @@
 Resumen
 Premium World
 Visa
-Banco BBVA Argentina S.A.
+Banco Emisor Argentina S.A.
 Visa Signature cuenta 0000-000000
 Titular: TITULAR EJEMPLO
 Domicilio: Calle Falsa 123
@@ -165,7 +165,7 @@ FARMACITY 68
 000267
 23.399,00
 09-Oct-26
-BBVA SEGUROS A2080004345904-007-000
+Emisor SEGUROS A2080004345904-007-000
 993721
 5.299,73
 12-Oct-26

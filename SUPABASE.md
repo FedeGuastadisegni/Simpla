@@ -1,5 +1,25 @@
 # Supabase
 
+## Actualizar una base existente: períodos de tarjeta
+
+Antes de publicar esta versión, ejecutá en SQL Editor el archivo `supabase/migrations/20261106012407_card_statement_periods.sql`. Es transaccional e idempotente: agrega fechas de cierre/vencimiento y vínculos opcionales a suscripciones o facturas, sin borrar registros ni asignar fechas inventadas a los consumos anteriores.
+
+Las claves foráneas incluyen `user_id`: un consumo no puede vincularse con una suscripción o factura de otro usuario. Al borrar la entidad vinculada se conserva el consumo y se limpia únicamente el vínculo. Las políticas RLS existentes se mantienen.
+
+Los consumos anteriores deben reimportarse o editarse para confirmar el vencimiento de su cuota actual. El esquema de una instalación nueva ya incluye estos campos. Los backups siguen siendo versión 1 y admiten los campos adicionales; los anteriores siguen siendo legibles, pero no pueden recuperar información que nunca guardaron.
+
+La app no persiste documentos ni texto extraído. Las columnas nuevas conservan exclusivamente fechas de los períodos y referencias a registros confirmados.
+
+### Validar el SQL sin acceder a producción
+
+`scripts/validate-period-schema.mjs` comprueba una instalación nueva y la actualización de una base anterior con PostgreSQL embebido (PGlite). Instalá PGlite fuera del proyecto y ejecutá:
+
+```text
+node scripts/validate-period-schema.mjs /ruta/a/node_modules/@electric-sql/pglite/dist/index.js
+```
+
+La comprobación utiliza identidades ficticias y cubre idempotencia, conservación de filas, fechas inválidas, vínculos entre usuarios, eliminación de vínculos y RLS. No se conecta a Supabase remoto. Las pruebas de lógica e importación se ejecutan con `npm test`.
+
 ## Pegar el SQL
 
 1. Entrá al proyecto en [supabase.com](https://supabase.com).
