@@ -12,6 +12,7 @@ import { ALLOWED_EMAIL, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "./config.
 import { buildExport, planImport, TABLES } from "./backup.js";
 import { onFx, refreshFx } from "./fx.js";
 import { applyTheme, readTheme, saveTheme } from "./theme.js";
+import { renderPulso, watchPulso } from "./pulso.js";
 import { listRows, onData, queueChange, startData, useLocalDemoStore } from "./db.js";
 import { renderPlanes, seedPlansIfEmpty, setPlanUser, watchPlans } from "./planes.js";
 import { renderProyeccion, watchProyeccion } from "./proyeccion.js";
@@ -20,6 +21,7 @@ import { DEMO_USER, focusManualCharge, isLocalDemo, renderTarjeta, seedExampleIf
 
 const SECTIONS = {
   inicio: "Simpla",
+  diarios: "Gastos diarios",
   tarjeta: "Tarjeta",
   prestamos: "Préstamos",
   servicios: "Servicios",
@@ -28,7 +30,7 @@ const SECTIONS = {
   usuario: "Usuario",
 };
 
-const links = document.querySelectorAll(".nav a, #more-sheet a");
+const links = document.querySelectorAll(".nav a, #more-sheet a, .pulse-tabs a");
 const MORE_SECTIONS = new Set(["prestamos", "servicios", "suscripciones", "proyeccion"]);
 const title = document.getElementById("section-title");
 const login = document.getElementById("login");
@@ -47,6 +49,7 @@ const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_K
 });
 
 let privateApp = false;
+watchPulso();
 let started = false;
 let backupUserId = null;
 let pendingImport = null;
@@ -132,6 +135,7 @@ function showApp() {
   syncNav();
   fillCalendar();
   renderTarjeta();
+  renderPulso();
   renderPlanes();
   renderProyeccion();
   refreshAlerts();
@@ -255,7 +259,7 @@ function markTheme(choice) {
     button.classList.toggle("is-on", on);
     button.setAttribute("aria-pressed", on ? "true" : "false");
   });
-  const color = resolvedDark(choice) ? "#1A1512" : "#F6E6D2";
+  const color = resolvedDark(choice) ? "#0c1018" : "#f4f6fa";
   document.querySelectorAll('meta[name="theme-color"]').forEach((node) => {
     node.setAttribute("content", color);
   });

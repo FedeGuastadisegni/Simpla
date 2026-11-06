@@ -9,7 +9,8 @@ La aplicación ya cuenta con persistencia y sincronización: permite registrar t
 - **Tarjetas:** tarjetas, consumos, cuotas y fechas de cierre.
 - **Préstamos:** seguimiento de cuotas y proyecciones de amortización.
 - **Servicios y suscripciones:** registro de importes, períodos y próximos cargos.
-- **Gastos diarios:** estructura de datos preparada; la pantalla de carga y la captura automática están pendientes.
+- **Gastos diarios:** apartado independiente con filtro mensual, categorías y movimientos existentes. La carga y la captura automática están pendientes para la segunda etapa.
+- **Pulso:** inicio centrado en el próximo vencimiento de cada tarjeta, desglose de cuotas, compras puntuales, suscripciones y servicios; comparación con el período siguiente y avance del cronograma. Las cuotas anteriores no implican pagos confirmados. El total refleja consumos registrados, no garantiza incluir todos los impuestos o ajustes del saldo bancario.
 - **Proyecciones:** vista combinada de compromisos y vencimientos para los próximos seis meses.
 - **Importación:** lectura de formatos de resumen de Tarjeta de Crédito VISA y Tarjeta de Crédito MasterCard desde PDF, además de importación desde imágenes. Otros diseños de resumen pueden requerir ajustes del lector.
 - **Alertas:** próximos pagos y cambios relevantes.
@@ -18,6 +19,8 @@ La aplicación ya cuenta con persistencia y sincronización: permite registrar t
 ## Cómo funciona
 
 Simpla es una PWA construida con HTML, CSS y JavaScript nativo, sin framework de frontend ni proceso de compilación.
+
+Pulso usa utilidades de Bootstrap 5.3.8 vendorizadas (licencia MIT incluida en el CSS), tipografías locales y estilos propios. En celular prioriza el vencimiento, apila los paneles y mantiene navegación inferior y controles táctiles. Todos sus recursos están incluidos en la publicación y el precaché sin conexión.
 
 La aplicación mantiene datos en IndexedDB en el navegador y utiliza una cola local para conservar cambios cuando no hay conexión. Al recuperar conectividad, sincroniza esos cambios con Supabase. El acceso se realiza con Google y los permisos de datos se controlan en la base mediante Row Level Security (RLS).
 

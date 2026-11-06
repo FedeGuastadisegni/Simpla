@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Simpla</title>
   <meta name="description" content="Simpla sigue tus gastos fijos: la tarjeta y sus cuotas, los préstamos, los servicios y las suscripciones.">
-  <meta name="theme-color" content="#F6E6D2">
-  <meta name="theme-color" content="#F6E6D2" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#1A1512" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f6fa">
+  <meta name="theme-color" content="#f4f6fa" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0c1018" media="(prefers-color-scheme: dark)">
   <meta name="color-scheme" content="light dark">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -18,11 +18,13 @@
   <link rel="icon" href="icons/favicon-32.png" type="image/png" sizes="32x32">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="vendor/bootstrap-utilities.min.css">
+  <link rel="stylesheet" href="pulso.css">
   <style>
-    html { background-color: #F6E6D2; }
-    html[data-theme="dark"] { background-color: #1A1512; }
+    html { background-color: #f4f6fa; }
+    html[data-theme="dark"] { background-color: #0c1018; }
     @media (prefers-color-scheme: dark) {
-      html:not([data-theme="light"]) { background-color: #1A1512; }
+      html:not([data-theme="light"]) { background-color: #0c1018; }
     }
   </style>
   <script>
@@ -68,7 +70,7 @@
               <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z"/>
             </svg>
           </span>
-          <span class="lbl">Inicio</span>
+          <span class="lbl">Fijos</span>
         </a>
         <a href="#tarjeta">
           <span class="ico">
@@ -147,6 +149,8 @@
 
     <main>
       <div class="content">
+        <nav class="pulse-tabs" aria-label="Tipo de gastos"><a href="#inicio">Fijos y tarjetas</a><a href="#diarios">Gastos diarios</a></nav>
+        <section class="view" id="diarios"><h1>Cuánto gastás y en qué.</h1><p>Débito, efectivo y transferencias. Estos movimientos no modifican tus compromisos fijos.</p><label class="pulse-picker">Mes<input type="month" id="daily-period"></label><div id="daily-content" class="pulse-grid"></div></section>
         <section class="view" id="usuario">
           <div class="glass panel">
           <p class="kicker">Sesión</p>
@@ -177,6 +181,7 @@
           </div>
         </section>
         <section class="view" id="inicio">
+          <div id="pulso-dashboard"></div>
           <div class="glass panel hero">
             <div class="hero-top">
               <div class="hero-main">
