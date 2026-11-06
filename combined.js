@@ -3,6 +3,7 @@
 // ARS y USD siguen separados.
 
 import { monthSummary } from "./card-math.js";
+import { withCardEstimates } from "./recurring.js";
 import {
   fromMonthKey,
   loanHits,
@@ -31,16 +32,18 @@ function servicesOf(services, bills, month) {
       amount: monthAmount.amount,
       estimated: monthAmount.estimated,
       text: estimate.text,
+      on_card: Boolean(service.card_id),
     };
   });
 }
 
 export function combinedMonth(data, month, reference) {
-  const cards = monthSummary(data.cardItems, data.cards, month);
+  const cardItems = withCardEstimates(data, month, 1);
+  const cards = monthSummary(cardItems, data.cards, month);
   const loans = loansInMonth(data.loans, month, reference);
   const subscriptions = subscriptionsInMonth(data.subscriptions, month);
   const services = servicesOf(data.services, data.serviceBills, month);
-  const serviceARS = services.reduce((sum, service) => sum + (service.amount || 0), 0);
+  const serviceARS = services.reduce((sum, service) => sum + (service.on_card ? 0 : service.amount || 0), 0);
   const totals = empty();
   totals.ARS = roundMoney(cards.totals.ARS + loans + serviceARS + subscriptions.ARS);
   totals.USD = roundMoney(cards.totals.USD + subscriptions.USD);
@@ -60,6 +63,7 @@ export function combinedMonth(data, month, reference) {
     suscripciones: subscriptions,
     endingCards: cards.ending,
     endingLoans,
+    estimatedCardCharges: cards.charges.filter((item) => item.estimated),
   };
 }
 
@@ -103,6 +107,7 @@ export function nextMonthChange(current, next, subscriptions = []) {
   const nowById = new Map((current.serviceDetails || []).map((service) => [service.id, service]));
   const services = [];
   for (const later of next.serviceDetails || []) {
+    if (later.on_card) continue;
     const now = nowById.get(later.id);
     const nowAmount = now?.amount ?? null;
     const nextAmount = later.amount ?? null;

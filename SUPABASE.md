@@ -1,5 +1,13 @@
 # Supabase
 
+## Actualizar una base existente: clasificación y medio de pago
+
+Antes de publicar la clasificación del resumen, ejecutá `supabase/migrations/20261106030439_classify_card_items.sql`, después de la migración de períodos. Agrega `card_id` opcional a servicios y suscripciones, con claves foráneas que incluyen `user_id`. No cambia los registros anteriores ni las políticas RLS y se puede ejecutar más de una vez.
+
+El consumo confirmado mantiene el vínculo a su suscripción o factura. Las sugerencias se reconstruyen desde esos registros, sin guardar el documento ni su texto original. Los cargos futuros son cálculos transitorios de la app; no generan filas de consumos ni documentos en Storage.
+
+Los respaldos incluyen las tarjetas vinculadas y restauran primero las entidades referenciadas. El script de validación local descrito más abajo comprueba ambas migraciones, los vínculos entre usuarios y la conservación de servicios y suscripciones al eliminar una tarjeta.
+
 ## Actualizar una base existente: períodos de tarjeta
 
 Antes de publicar esta versión, ejecutá en SQL Editor el archivo `supabase/migrations/20261106012407_card_statement_periods.sql`. Es transaccional e idempotente: agrega fechas de cierre/vencimiento y vínculos opcionales a suscripciones o facturas, sin borrar registros ni asignar fechas inventadas a los consumos anteriores.

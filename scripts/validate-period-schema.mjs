@@ -13,6 +13,7 @@ const schema = read("supabase/schema.sql").replaceAll(allowedEmail, "owner@examp
 const marker = "-- Períodos de tarjeta y vínculos";
 const legacySchema = schema.slice(0, schema.indexOf(marker));
 const migration = read("supabase/migrations/20261106012407_card_statement_periods.sql");
+const classificationMigration = read("supabase/migrations/20261106030439_classify_card_items.sql");
 const user = "00000000-0000-4000-8000-000000000001";
 const other = "00000000-0000-4000-8000-000000000002";
 const card = "00000000-0000-4000-8000-000000000003";
@@ -43,6 +44,8 @@ for (const mode of ["migración de una base existente", "esquema nuevo"]) {
     // La migración es repetible y no modifica ni inventa períodos anteriores.
     await db.exec(migration);
     await db.exec(migration);
+    await db.exec(classificationMigration);
+    await db.exec(classificationMigration);
     let result = await db.query("select description, statement_due_on from public.card_items");
     assert.equal(result.rows[0].description, "Compra anterior");
     assert.equal(result.rows[0].statement_due_on, null);
@@ -70,6 +73,21 @@ for (const mode of ["migración de una base existente", "esquema nuevo"]) {
         values ('${sub}', '${other}', 'Ajena', 10, 'USD', 'mensual', '2026-11-05');
     `);
     await assert.rejects(db.exec(`update public.card_items set subscription_id = '${sub}' where id = '${item}'`), /card_items_subscription_fkey/);
+    await assert.rejects(db.exec(`update public.subscriptions set card_id = '${card}' where id = '${sub}'`), /subscriptions_card_fkey/);
+    await db.exec(`insert into public.services (id, user_id, name, category, card_id)
+      values ('${service}', '${user}', 'Internet', 'internet', '${card}');`);
+    await db.exec(`insert into public.subscriptions (id, user_id, name, amount, currency, frequency, next_charge_on, card_id)
+      values ('00000000-0000-4000-8000-000000000008', '${user}', 'Streaming', 10, 'USD', 'mensual', '2026-11-05', '${card}');`);
+    // Borrar una tarjeta conserva las entidades y limpia solo el medio de pago.
+    await db.exec(`delete from public.cards where id = '${card}'`);
+    result = await db.query(`select (select card_id from public.services where id='${service}') as service_card,
+      (select card_id from public.subscriptions where id='00000000-0000-4000-8000-000000000008') as subscription_card`);
+    assert.equal(result.rows[0].service_card, null);
+    assert.equal(result.rows[0].subscription_card, null);
+    // Reponer una fila para comprobar el aislamiento RLS después de las migraciones.
+    await db.exec(`insert into public.cards (id,user_id,name,due_day) values ('${card}','${user}','VISA',11);
+      insert into public.card_items (id,user_id,card_id,description,amount,currency,spent_on)
+      values ('${item}','${user}','${card}','Prueba',100,'ARS','2026-11-05');`);
     result = await db.query(`select count(*)::int as count from pg_class c join pg_namespace n on n.oid = c.relnamespace
       where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity and c.relforcerowsecurity`);
     assert.equal(result.rows[0].count, 7);

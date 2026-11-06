@@ -1544,6 +1544,16 @@ dialog .row-actions button {
   font-size: 0.85rem;
 }
 
+.pdf-classification {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.pdf-classification [hidden] { display: none; }
+
 .pdf-line {
   display: grid;
   gap: 8px;
