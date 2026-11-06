@@ -1,4 +1,4 @@
-import { forecastMonths, monthSummary, parseIsoDate, purchasePeriod, sumByCurrency } from "./card-math.js";
+import { forecastMonths, nextCardDate, monthSummary, parseIsoDate, purchasePeriod, sumByCurrency } from "./card-math.js";
 import { amountNode, putAmount } from "./money-view.js";
 import { listRows, onData, queueChange } from "./db.js";
 import { redactLongNumbers } from "./privacy.js";
@@ -179,7 +179,7 @@ function renderSummary(card, items) {
     return;
   }
   due.textContent = card.closing_day ? `Vence el ${card.due_day} · cierra el ${card.closing_day}` : `Vence el ${card.due_day}`;
-  const month = currentMonth();
+  const month = parseIsoDate(nextCardDate(card, todayIso())) || currentMonth();
   const summary = monthSummary(items, [card], month);
   if (summary.charges.some((item) => item.estimated)) {
     line(root, "Incluye cargos recurrentes estimados. Se reemplazan por el importe real al confirmar el resumen.", "service-note");
@@ -212,9 +212,9 @@ function renderSummary(card, items) {
   if (drop.ARS === 0 && drop.USD === 0) {
     line(ink, "Ninguna cuota termina este mes.", "");
   } else {
-    if (drop.ARS > 0) line(ink, `El mes que viene baja ${money(drop.ARS, "ARS")}`, "drop-line");
+    if (drop.ARS > 0) line(ink, `Terminan cuotas por ${money(drop.ARS, "ARS")}`, "drop-line");
     if (drop.USD > 0) {
-      const dropUsd = line(ink, "El mes que viene baja ", "drop-line");
+      const dropUsd = line(ink, "Terminan cuotas por ", "drop-line");
       dropUsd.append(amountNode(drop.USD, "USD"));
     }
   }
