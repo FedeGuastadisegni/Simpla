@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildExport, planImport, validateImport } from "../backup.js";
+import { bankDifference, germanSchedule, loanHits } from "../projections.js";
 
 const EXPORTED_AT = "2026-11-05T03:00:00.000Z";
 
@@ -116,4 +117,46 @@ test("un archivo que no es de Simpla no se importa", () => {
   const result = validateImport({ version: 2, data: {} });
   assert.equal(result.ok, false);
   assert.equal(planImport({ hola: true }, {}).ok, false);
+});
+
+test("exportar y restaurar un préstamo alemán conserva sus cuotas y el ajuste del banco", () => {
+  for (const adjust of [false, true]) {
+    const loan = {
+      id: "loan-german",
+      name: "Préstamo decreciente",
+      installment_amount: 160000,
+      remaining_installments: 12,
+      ends_on: "2027-10-10",
+      amortization: "aleman",
+      remaining_principal: 1200000,
+      tem: 5,
+      cft: 80,
+      current_installment_bank: 170000,
+      adjust_bank: adjust,
+    };
+    const payload = JSON.parse(JSON.stringify(buildExport({ loans: [loan] }, EXPORTED_AT)));
+    const plan = planImport(payload, {});
+    assert.equal(plan.ok, true);
+    const restored = plan.ops.find((op) => op.table === "loans").row;
+    assert.deepEqual(restored, loan);
+    assert.deepEqual(germanSchedule(restored), germanSchedule(loan));
+    assert.deepEqual(bankDifference(restored), bankDifference(loan));
+    const reference = { year: 2026, month: 10 };
+    for (let offset = 0; offset <= 12; offset += 1) {
+      const date = new Date(2026, 10 + offset, 1);
+      const month = { year: date.getFullYear(), month: date.getMonth() };
+      assert.equal(loanHits(restored, month, reference), loanHits(loan, month, reference));
+    }
+  }
+});
+
+test("los backups v1 anteriores siguen restaurando préstamos de cuota fija", () => {
+  const loan = sample().loans[0];
+  const plan = planImport({ version: 1, data: { loans: [loan] } }, {});
+  assert.equal(plan.ok, true);
+  const restored = plan.ops[0].row;
+  assert.deepEqual(restored, loan);
+  const reference = { year: 2026, month: 10 };
+  assert.equal(loanHits(restored, reference, reference), 95000);
+  assert.equal(loanHits(restored, { year: 2027, month: 6 }, reference), 0);
 });

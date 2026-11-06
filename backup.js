@@ -18,7 +18,10 @@ export const TABLES = [
 const FIELDS = {
   cards: ["id", "name", "due_day", "closing_day"],
   card_items: ["id", "card_id", "description", "amount", "currency", "spent_on", "installment_number", "installment_count"],
-  loans: ["id", "name", "installment_amount", "remaining_installments", "ends_on"],
+  loans: [
+    "id", "name", "installment_amount", "remaining_installments", "ends_on",
+    "amortization", "remaining_principal", "tem", "cft", "current_installment_bank", "adjust_bank",
+  ],
   services: ["id", "name", "category"],
   service_bills: ["id", "service_id", "period", "amount"],
   subscriptions: ["id", "name", "amount", "currency", "frequency", "next_charge_on", "on_card"],
