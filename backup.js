@@ -7,17 +7,17 @@ export const BACKUP_VERSION = 1;
 
 export const TABLES = [
   "cards",
-  "card_items",
   "loans",
   "services",
   "service_bills",
   "subscriptions",
+  "card_items",
   "expenses",
 ];
 
 const FIELDS = {
-  cards: ["id", "name", "due_day", "closing_day"],
-  card_items: ["id", "card_id", "description", "amount", "currency", "spent_on", "installment_number", "installment_count"],
+  cards: ["id", "name", "due_day", "closing_day", "last_closing_on", "last_due_on", "next_closing_on", "next_due_on"],
+  card_items: ["id", "card_id", "description", "amount", "currency", "spent_on", "installment_number", "installment_count", "statement_closes_on", "statement_due_on", "subscription_id", "service_bill_id"],
   loans: [
     "id", "name", "installment_amount", "remaining_installments", "ends_on",
     "amortization", "remaining_principal", "tem", "cft", "current_installment_bank", "adjust_bank",

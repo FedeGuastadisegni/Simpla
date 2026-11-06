@@ -1,9 +1,10 @@
-import { matchCard, normalizeOcrText, parseBbvaStatement, planStatementImport } from "./bbva.js";
+import { matchCard, normalizeOcrText, parseCardStatement, planStatementImport } from "./statement-parser.js";
 import { amountNode } from "./money-view.js";
 import { redactLongNumbers } from "./privacy.js";
 import { listRows, queueChange } from "./db.js";
 import { textFromPdf } from "./pdf-text.js";
 import { focusCard } from "./tarjeta.js";
+import { parseIsoDate } from "./card-math.js";
 
 let userId = null;
 let review = null;
@@ -114,6 +115,8 @@ function readRows() {
       spent_on: node.querySelector("[data-field=spent_on]").value,
       installment_number: current === "" ? null : Number(current),
       installment_count: total === "" ? null : Number(total),
+      statement_closes_on: document.getElementById("pdf-closing-on").value,
+      statement_due_on: document.getElementById("pdf-due-on").value,
     };
   });
 }
@@ -187,6 +190,9 @@ async function paintCardChoice() {
 
 function dateMismatch(matched) {
   if (!matched || !review) return " Se guardan el cierre y el vencimiento de este resumen.";
+  if (matched.last_closing_on && review.closingDate && review.closingDate < matched.last_closing_on) {
+    return " Es un resumen anterior. Los consumos conservan su período y la tarjeta mantiene las fechas del resumen más reciente.";
+  }
   const dueDiffers = review.dueDay != null && Number(matched.due_day) !== Number(review.dueDay);
   const closeDiffers = review.closingDay != null && Number(matched.closing_day) !== Number(review.closingDay);
   if (!dueDiffers && !closeDiffers) return " El cierre y el vencimiento coinciden con la tarjeta guardada.";
@@ -205,6 +211,8 @@ function closeReview() {
   document.getElementById("pdf-dates").textContent = "";
   document.getElementById("pdf-balances").textContent = "";
   document.getElementById("pdf-card-name").value = "";
+  document.getElementById("pdf-closing-on").value = "";
+  document.getElementById("pdf-due-on").value = "";
   document.getElementById("pdf-card-note").textContent = "";
   clear(document.getElementById("pdf-lines"));
 }
@@ -229,12 +237,14 @@ async function showReview(parsed, emptyMessage) {
     return;
   }
   review = parsed;
+  document.getElementById("pdf-closing-on").value = parsed.closingDate || "";
+  document.getElementById("pdf-due-on").value = parsed.dueDate || "";
   error.textContent = "";
   const panel = document.getElementById("pdf-review");
   panel.hidden = false;
   const dates = [`Cierre ${shortDate(review.closingDate)}`, `Vencimiento ${shortDate(review.dueDate)}`];
   if (review.nextClosing || review.nextDue) {
-    dates.push(`Próximo cierre ${shortDate(review.nextClosing)}, próximo vencimiento ${shortDate(review.nextDue)}. Eso no se guarda.`);
+    dates.push(`Próximo cierre ${shortDate(review.nextClosing)}, próximo vencimiento ${shortDate(review.nextDue)}. Se usan para estimar las compras posteriores al cierre.`);
   }
   document.getElementById("pdf-dates").textContent = dates.join(" · ");
   const balances = document.getElementById("pdf-balances");
@@ -254,7 +264,7 @@ async function openFile(file) {
   let text = "";
   try {
     text = await textFromPdf(bytes);
-    await showReview(parseBbvaStatement(text), "No encontré consumos en ese resumen.");
+    await showReview(parseCardStatement(text), "No encontré consumos en ese resumen.");
   } catch (failure) {
     review = null;
     document.getElementById("pdf-review").hidden = false;
@@ -281,7 +291,7 @@ async function openImage(file) {
   try {
     const { textFromImage } = await import("./ocr.js");
     text = normalizeOcrText(await textFromImage(file));
-    const parsed = parseBbvaStatement(text);
+    const parsed = parseCardStatement(text);
     text = "";
     notice.textContent = "";
     await showReview(parsed, OCR_FAIL);
@@ -300,6 +310,10 @@ async function confirmReview() {
   error.textContent = "";
   notice.textContent = "";
   if (!review || !userId) return;
+  if (!document.getElementById("pdf-closing-on").value || !document.getElementById("pdf-due-on").value) {
+    error.textContent = "Completá el cierre y el vencimiento para ubicar los consumos en el mes de pago.";
+    return;
+  }
   const name = redactLongNumbers(document.getElementById("pdf-card-name").value.trim());
   if (!name) {
     error.textContent = "Poné un nombre para la tarjeta.";
@@ -308,8 +322,21 @@ async function confirmReview() {
   knownCards = await listRows("cards");
   knownItems = await listRows("card_items");
   const matched = matchCard(knownCards, name);
-  const due = review.dueDay || matched?.due_day || 1;
-  const closing = review.closingDay ?? matched?.closing_day ?? null;
+  const closingOn = document.getElementById("pdf-closing-on").value;
+  const dueOn = document.getElementById("pdf-due-on").value;
+  if (!parseIsoDate(closingOn) || !parseIsoDate(dueOn) || dueOn < closingOn) {
+    error.textContent = "Revisá las fechas: el vencimiento debe ser igual o posterior al cierre.";
+    return;
+  }
+  const due = Number(dueOn.slice(-2));
+  const closing = Number(closingOn.slice(-2));
+  const period = {
+    last_closing_on: closingOn,
+    last_due_on: dueOn,
+    next_closing_on: review.nextClosing > closingOn && review.nextDue > dueOn ? review.nextClosing : null,
+    next_due_on: review.nextClosing > closingOn && review.nextDue > dueOn ? review.nextDue : null,
+  };
+  const updateCard = !matched?.last_closing_on || closingOn >= matched.last_closing_on;
   const cardId = matched?.id || crypto.randomUUID();
   const plan = planStatementImport(readRows(), cardId, await listRows("card_items"));
   if (!plan.ok) {
@@ -323,14 +350,14 @@ async function confirmReview() {
       name,
       due_day: due,
       closing_day: closing,
+      ...period,
     }));
   } else {
     await queueChange("cards", "update", stamp({
       ...matched,
       user_id: userId,
       name,
-      due_day: due,
-      closing_day: closing,
+      ...(updateCard ? { due_day: due, closing_day: closing, ...period } : {}),
     }));
   }
   for (const row of plan.inserts) {
@@ -352,6 +379,8 @@ async function confirmReview() {
       spent_on: row.spent_on,
       installment_number: row.installment_number,
       installment_count: row.installment_count,
+      statement_closes_on: row.statement_closes_on,
+      statement_due_on: row.statement_due_on,
     }));
   }
   focusCard(cardId);
@@ -364,6 +393,8 @@ async function confirmReview() {
   notice.textContent = parts.length ? `${parts.join(", ")}.` : "No había consumos para guardar.";
   review = null;
   clear(document.getElementById("pdf-lines"));
+  document.getElementById("pdf-dates").textContent = "";
+  document.getElementById("pdf-balances").textContent = "";
   document.getElementById("pdf-summary").textContent = notice.textContent;
 }
 
@@ -406,6 +437,9 @@ function wire() {
     takeStatement(file);
   });
   document.getElementById("pdf-card-name").addEventListener("input", paintSummary);
+  for (const id of ["pdf-closing-on", "pdf-due-on"]) {
+    document.getElementById(id).addEventListener("input", paintSummary);
+  }
   drop.addEventListener("dragover", (event) => {
     event.preventDefault();
     drop.classList.add("is-over");

@@ -19,7 +19,7 @@
 // de meses consecutivos, entre las últimas 6. Se aplica en cadena
 // desde la última factura. Un mes con factura propia usa ese monto.
 
-import { monthSummary, parseIsoDate } from "./card-math.js";
+import { monthSummary, nextCardDate, parseIsoDate } from "./card-math.js";
 
 export function roundMoney(value) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
@@ -290,17 +290,15 @@ export function upcomingPayments(data, todayIso) {
   }
 
   for (const card of data.cards || []) {
-    const due = Number(card.due_day);
-    if (!Number.isInteger(due) || due < 1 || due > 31) continue;
-    let pay = { year: today.year, month: today.month, day: due };
-    if (isoOf(pay) < todayIso) pay = shiftParts(pay, 1);
-    const date = isoOf(pay);
+    const date = nextCardDate(card, todayIso);
+    const pay = parseIsoDate(date);
+    if (!pay) continue;
     if (!withinDays(todayIso, date, 45)) continue;
     const summary = monthSummary(data.cardItems || [], [card], { year: pay.year, month: pay.month });
     if (summary.totals.ARS > 0) {
       items.push({
         date,
-        day: pad(due),
+        day: pad(pay.day),
         title: card.name,
         meta: "Tarjeta",
         amount: summary.totals.ARS,
@@ -310,7 +308,7 @@ export function upcomingPayments(data, todayIso) {
     if (summary.totals.USD > 0) {
       items.push({
         date,
-        day: pad(due),
+        day: pad(pay.day),
         title: card.name,
         meta: "Tarjeta · dólares",
         amount: summary.totals.USD,

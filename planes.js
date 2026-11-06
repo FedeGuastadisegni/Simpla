@@ -567,21 +567,32 @@ async function removeLoan(loan) {
 
 async function removeSub(subscription) {
   if (!confirm(`¿Borrar ${subscription.name}?`)) return;
+  await detachCharges("subscription_id", subscription.id);
   await queueChange("subscriptions", "delete", { id: subscription.id });
   if (editingSubId === subscription.id) resetSubForm();
 }
 
 async function removeBill(bill) {
   if (!confirm("¿Borrar esta factura?")) return;
+  await detachCharges("service_bill_id", bill.id);
   await queueChange("service_bills", "delete", { id: bill.id });
   if (editingBillId === bill.id) resetBillForm();
 }
 
 async function removeService(service, bills) {
   if (!confirm(`¿Borrar ${service.name} y sus facturas?`)) return;
-  for (const bill of bills) await queueChange("service_bills", "delete", { id: bill.id });
+  for (const bill of bills) {
+    await detachCharges("service_bill_id", bill.id);
+    await queueChange("service_bills", "delete", { id: bill.id });
+  }
   await queueChange("services", "delete", { id: service.id });
   if (editingServiceId === service.id) resetServiceForm();
+}
+
+async function detachCharges(field, id) {
+  for (const item of await listRows("card_items")) {
+    if (item[field] === id) await queueChange("card_items", "update", stamp({ ...item, [field]: null }));
+  }
 }
 
 function wireForms() {

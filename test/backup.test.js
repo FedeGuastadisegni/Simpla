@@ -64,9 +64,9 @@ test("importar no duplica: el id que ya existe se actualiza", () => {
   const payload = buildExport(sample(), EXPORTED_AT);
   const first = planImport(payload, { cards: [], card_items: [], loans: [], services: [], service_bills: [], subscriptions: [], expenses: [] });
   assert.equal(first.ok, true);
-  assert.equal(first.summary, "1 tarjeta, 1 consumo, 1 préstamo");
+  assert.equal(first.summary, "1 tarjeta, 1 préstamo, 1 consumo");
   assert.deepEqual(first.ops.map((op) => op.op), ["insert", "insert", "insert"]);
-  assert.equal(first.ops[1].row.description, "Heladera ••••");
+  assert.equal(first.ops.find((op) => op.table === "card_items").row.description, "Heladera ••••");
 
   const existing = {
     cards: [{ id: "card-1" }],

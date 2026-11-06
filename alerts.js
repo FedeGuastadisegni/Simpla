@@ -1,7 +1,7 @@
 // Alertas de vencimiento. No pide permiso ni toca la pantalla:
 // arma la lista y recuerda qué notificación ya se mostró hoy.
 
-import { parseIsoDate } from "./card-math.js";
+import { nextCardDate, parseIsoDate } from "./card-math.js";
 import { nextSubscriptionDate } from "./projections.js";
 
 export const ALERTS_KEY = "simpla-alerts";
@@ -120,7 +120,7 @@ export function dueSoon(data, today, daysAhead = 3) {
 
   for (const card of data.cards || []) {
     const name = card.name || "La tarjeta";
-    const closing = nextMonthDay(today, card.closing_day);
+    const closing = nextCardDate(card, today, "closing");
     const closingIn = closing ? ahead(today, closing, window) : null;
     if (closingIn != null) {
       alerts.push({
@@ -133,7 +133,7 @@ export function dueSoon(data, today, daysAhead = 3) {
         text: `${name} cierra ${when(closingIn, closing, false)}`,
       });
     }
-    const due = nextMonthDay(today, card.due_day);
+    const due = nextCardDate(card, today);
     const dueIn = due ? ahead(today, due, window) : null;
     if (dueIn != null) {
       alerts.push({
