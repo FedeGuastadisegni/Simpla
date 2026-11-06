@@ -21,6 +21,8 @@ let listening = false;
 let databaseName = "simpla";
 let enqueue = true;
 let syncHook = null;
+let syncRunning = null;
+let syncAgain = false;
 const listeners = new Set();
 
 export function bindSync(fn) {
@@ -113,29 +115,37 @@ export async function listRows(table) {
 }
 
 export async function queueChange(table, op, row) {
-  if (!TABLES.includes(table)) throw new Error("Tabla desconocida");
-  if (op !== "insert" && op !== "update" && op !== "delete") {
-    throw new Error("Operación desconocida");
-  }
-  const rowId = row.id;
-  if (!rowId) throw new Error("Falta el id");
+  return queueChanges([{ table, op, row }]);
+}
 
-  const db = await openDatabase();
-  const stores = enqueue ? [table, "outbox"] : [table];
-  const transaction = db.transaction(stores, "readwrite");
-  const store = transaction.objectStore(table);
-  if (op === "delete") store.delete(rowId);
-  else store.put(row);
-  if (enqueue) {
-    transaction.objectStore("outbox").add({
-      table,
-      op,
-      rowId,
-      row: op === "delete" ? null : row,
-      queuedAt: new Date().toISOString(),
-    });
+export async function queueChanges(operations) {
+  if (!operations.length) return;
+  for (const { table, op, row } of operations) {
+    if (!TABLES.includes(table)) throw new Error("Tabla desconocida");
+    if (!["insert", "update", "delete"].includes(op)) throw new Error("Operación desconocida");
+    if (!row.id) throw new Error("Falta el id");
   }
-  await transactionDone(transaction);
+  const db = await openDatabase();
+  const stores = [...new Set(operations.map((item) => item.table))];
+  if (enqueue) stores.push("outbox");
+  const transaction = db.transaction(stores, "readwrite");
+  const done = transactionDone(transaction);
+  try {
+    for (const { table, op, row } of operations) {
+      const store = transaction.objectStore(table);
+      if (op === "delete") store.delete(row.id);
+      else store.put(row);
+      if (enqueue) transaction.objectStore("outbox").add({
+        table, op, rowId: row.id, row: op === "delete" ? null : row,
+        queuedAt: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    transaction.abort();
+    await done.catch(() => {});
+    throw error;
+  }
+  await done;
   emit();
   if (enqueue && syncHook) syncHook();
 }
@@ -157,7 +167,8 @@ async function pushOutbox(client) {
     } else if (item.op === "update") {
       result = await client.from(item.table).update(item.row).eq("id", item.rowId);
     } else {
-      result = await client.from(item.table).insert(item.row);
+      // Un reintento tras perder la respuesta no vuelve a insertar ni pisa otra versión.
+      result = await client.from(item.table).upsert(item.row, { onConflict: "id", ignoreDuplicates: true });
     }
     if (result.error) throw result.error;
     await removeOutbox(item.id);
@@ -197,7 +208,7 @@ async function pullAll(client) {
   }
 }
 
-export async function syncNow(client) {
+async function syncCycle(client) {
   if (!enqueue) return;
   const pendingBefore = await pendingCount();
   if (!navigator.onLine) {
@@ -214,6 +225,18 @@ export async function syncNow(client) {
     const pending = await pendingCount();
     renderStatus(pending ? "pending" : "offline");
   }
+}
+
+export function syncNow(client) {
+  syncAgain = true;
+  if (syncRunning) return syncRunning;
+  syncRunning = (async () => {
+    do {
+      syncAgain = false;
+      await syncCycle(client);
+    } while (syncAgain && navigator.onLine);
+  })().finally(() => { syncRunning = null; });
+  return syncRunning;
 }
 
 export function startData(client) {

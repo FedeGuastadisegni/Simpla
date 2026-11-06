@@ -22,9 +22,9 @@ const FIELDS = {
     "id", "name", "installment_amount", "remaining_installments", "ends_on",
     "amortization", "remaining_principal", "tem", "cft", "current_installment_bank", "adjust_bank",
   ],
-  services: ["id", "name", "category"],
+  services: ["id", "name", "category", "card_id"],
   service_bills: ["id", "service_id", "period", "amount"],
-  subscriptions: ["id", "name", "amount", "currency", "frequency", "next_charge_on", "on_card"],
+  subscriptions: ["id", "name", "amount", "currency", "frequency", "next_charge_on", "on_card", "card_id"],
   expenses: ["id", "spent_on", "amount", "currency", "description", "category", "source"],
 };
 

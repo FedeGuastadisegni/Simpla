@@ -2,6 +2,7 @@ import { forecastMonths, monthSummary, parseIsoDate, purchasePeriod, sumByCurren
 import { amountNode, putAmount } from "./money-view.js";
 import { listRows, onData, queueChange } from "./db.js";
 import { redactLongNumbers } from "./privacy.js";
+import { withCardEstimates } from "./recurring.js";
 
 const DEMO_USER = "00000000-0000-4000-8000-000000000001";
 
@@ -152,6 +153,7 @@ function chargeRow(parent, item, mint) {
   const title = document.createElement("p");
   title.className = "row-title";
   title.textContent = item.description;
+  if (item.estimated) title.append(" · Estimado");
   text.append(title);
   if (item.installment_number != null && item.installment_count != null) {
     const meta = document.createElement("p");
@@ -179,6 +181,9 @@ function renderSummary(card, items) {
   due.textContent = card.closing_day ? `Vence el ${card.due_day} · cierra el ${card.closing_day}` : `Vence el ${card.due_day}`;
   const month = currentMonth();
   const summary = monthSummary(items, [card], month);
+  if (summary.charges.some((item) => item.estimated)) {
+    line(root, "Incluye cargos recurrentes estimados. Se reemplazan por el importe real al confirmar el resumen.", "service-note");
+  }
   if (card.last_closing_on && card.last_due_on) {
     line(root, `Último período confirmado: cierre ${card.last_closing_on} · vence ${card.last_due_on}. Los totales se agrupan por mes de pago.`, "service-note");
   }
@@ -389,6 +394,13 @@ function resetItemForm() {
 
 async function deleteCard(card) {
   if (!confirm(`¿Borrar ${card.name} y sus consumos?`)) return;
+  for (const table of ["services", "subscriptions"]) {
+    for (const row of await listRows(table)) {
+      if (row.card_id === card.id) await queueChange(table, "update", stamp({
+        ...row, card_id: null, ...(table === "subscriptions" ? { on_card: false } : {}),
+      }));
+    }
+  }
   const items = await listRows("card_items");
   for (const item of items.filter((row) => row.card_id === card.id)) {
     await queueChange("card_items", "delete", { id: item.id });
@@ -533,13 +545,16 @@ function wireForms() {
 export async function renderTarjeta() {
   wireForms();
   const cards = await listRows("cards");
-  const items = await listRows("card_items");
+  const [items, subscriptions, services, serviceBills] = await Promise.all([
+    listRows("card_items"), listRows("subscriptions"), listRows("services"), listRows("service_bills"),
+  ]);
+  const projected = withCardEstimates({ cards, cardItems: items, subscriptions, services, serviceBills }, currentMonth(), 6);
   if (!cards.some((card) => card.id === selectedCardId)) {
     selectedCardId = cards[0]?.id || null;
   }
   const card = cards.find((row) => row.id === selectedCardId) || null;
-  const scoped = itemsFor(items, selectedCardId);
-  fillInicio(items, cards);
+  const scoped = itemsFor(projected, selectedCardId);
+  fillInicio(projected, cards);
   renderSummary(card, scoped);
   renderCardList(cards);
   renderItemList(items, cards);

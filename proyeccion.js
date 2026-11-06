@@ -1,7 +1,8 @@
 import { listRows, onData } from "./db.js";
 import { amountNode, putAmount } from "./money-view.js";
 import { combinedForecast, monthDelta, nextMonthChange } from "./combined.js";
-import { paidOnCard, roundMoney, upcomingPayments } from "./projections.js";
+import { paidOnCard, roundMoney } from "./projections.js";
+import { upcomingClassifiedPayments } from "./recurring.js";
 import { ringPresentation } from "./ring-layout.js";
 
 function money(amount, currency) {
@@ -235,6 +236,7 @@ function paintTimeline(months) {
     add(item, "p", "timeline-month", monthTitle(month.month));
     const total = add(item, "p", "timeline-total");
     total.append(`${money(month.totals.ARS, "ARS")} · `, amountNode(month.totals.USD, "USD"));
+    if (month.estimatedCardCharges?.length) add(item, "p", "service-note", "Tarjeta: incluye cargos recurrentes estimados, pendientes de confirmar con el resumen.");
     if (index === 1) {
       const delta = monthDelta(months[0], month);
       const change = add(item, "p", "timeline-change");
@@ -261,7 +263,7 @@ function paintTimeline(months) {
       const mark = service.estimated ? "estimado" : "facturado";
       note.textContent = service.amount == null
         ? `${service.name}: ${service.text || "Sin facturas."}`
-        : `${service.name}: ${amount}, ${mark}. ${service.text || ""}`.trim();
+        : `${service.name}: ${amount}, ${mark}${service.on_card ? " · se paga dentro de la tarjeta" : ""}. ${service.text || ""}`.trim();
     }
     categoryRow(item, "Suscripciones", (node) => {
       node.append(`${money(month.suscripciones.ARS, "ARS")} · `, amountNode(month.suscripciones.USD, "USD"));
@@ -445,7 +447,7 @@ function paintUpcoming(data) {
   root.replaceChildren();
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  const items = upcomingPayments(data, today);
+  const items = upcomingClassifiedPayments(data, today);
   if (!items.length) {
     add(root, "p", "empty", "Todavía no hay pagos cargados.");
     return;

@@ -53,7 +53,7 @@ Para probar el inicio de sesión local, la URL local también debe estar permiti
 
 ## Pruebas
 
-Los tests usan el runner nativo de Node.js y no requieren dependencias adicionales. Con Node.js 22 o superior, ejecutá:
+Los tests usan el runner nativo de Node.js y `fake-indexeddb` como dependencia de desarrollo para comprobar el almacenamiento local sin un navegador. Con Node.js 22 o superior, instalá primero las dependencias con `npm ci` y ejecutá:
 
 \`\`\`bash
 npm test
@@ -79,4 +79,12 @@ La revisión permite corregir cierre y vencimiento antes de confirmar. Una cuota
 
 Los documentos se procesan en memoria en el navegador. No se guardan ni se suben PDF, imágenes o el texto completo extraído: solo se persisten los registros confirmados y las fechas necesarias para proyectarlos.
 
-El modelo admite vínculos opcionales entre consumos y suscripciones o facturas. La clasificación en la revisión de importación y la anticipación de cargos recurrentes se implementarán en una siguiente etapa.
+## Clasificación del resumen
+
+En la revisión podés confirmar cada ítem como compra normal, suscripción o servicio, crear el registro o vincular uno existente. En los servicios se confirma también el período facturado, que puede ser distinto del mes de compra y del mes de pago. Los servicios admiten ARS; para cargos en USD se conserva la opción de compra o suscripción.
+
+Las clasificaciones anteriores del mismo comercio, moneda y tarjeta se sugieren al importar de nuevo y se pueden corregir. Los consumos ya registrados también se pueden clasificar sin duplicarlos. Reclasificar un consumo no cancela automáticamente un servicio o suscripción existente: esos registros se administran desde su sección.
+
+Los servicios y suscripciones pagados con tarjeta se cuentan dentro de ella. Los cargos futuros se calculan en memoria, se señalan como estimados y son reemplazados por los cargos reales vinculados al confirmar el siguiente resumen. Las estimaciones no se guardan como consumos ni se incluyen en los backups. Se conserva la carga manual y se puede cambiar el medio de pago desde Servicios o Suscripciones.
+
+La revisión se guarda como un lote local completo, junto con su cola de sincronización. Cancelar o encontrar un error de validación no crea registros parciales. Los envíos se serializan y las altas se pueden reintentar sin duplicarlas si se perdió una respuesta de la red.

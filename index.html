@@ -315,7 +315,7 @@
               <input id="pdf-card-name" type="text" maxlength="80" autocomplete="off">
             </label>
             <p id="pdf-card-note" class="service-note"></p>
-            <p class="hint">Tildá lo que querés guardar. Si coincide con algo que cargaste a mano, lo vinculamos y no se duplica. Si es otro consumo, marcalo.</p>
+            <p class="hint">Tildá lo que querés confirmar y elegí si es compra, suscripción o servicio. Los consumos ya cargados pueden clasificarse sin duplicarlos. Si es otro consumo, marcalo.</p>
             <div id="pdf-lines"></div>
             <p id="pdf-error" class="form-error" role="alert"></p>
             <p id="pdf-notice" class="service-note"></p>
@@ -460,6 +460,9 @@
                 <option value="seguro_auto">Seguro auto</option>
               </select>
             </label>
+            <label>Forma de pago
+              <select name="card_id" id="service-card"><option value="">Fuera de tarjeta</option></select>
+            </label>
             <p id="service-form-error" class="form-error" role="alert"></p>
             <button id="service-submit" class="btn-primary" type="submit">Agregar servicio</button>
           </form>
@@ -513,7 +516,10 @@
               <input name="on_card" type="checkbox">
               Va en la tarjeta
             </label>
-            <p class="hint">Si el cobro ya aparece en el resumen, no se suma a los fijos ni a la proyección.</p>
+            <p class="hint">Se cuenta dentro de la tarjeta elegida. Los cargos futuros se estiman y se reemplazan al confirmar el resumen.</p>
+            <label>Tarjeta que paga la suscripción
+              <select name="card_id" id="sub-card"><option value="">Elegí una tarjeta</option></select>
+            </label>
             <p id="sub-form-error" class="form-error" role="alert"></p>
             <button id="sub-submit" class="btn-primary" type="submit">Agregar suscripción</button>
           </form>

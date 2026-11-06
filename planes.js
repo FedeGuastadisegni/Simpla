@@ -1,6 +1,8 @@
 import { listRows, onData, queueChange } from "./db.js";
 import { amountNode, putAmount } from "./money-view.js";
 import { redactLongNumbers } from "./privacy.js";
+import { CATEGORIES } from "./service-categories.js";
+export { CATEGORIES } from "./service-categories.js";
 import {
   BANK_GAP_NOTE,
   bankDifference,
@@ -18,17 +20,6 @@ import {
 } from "./projections.js";
 
 const USD_WARNING = "Si pagás esta parte con pesos, se cobra una percepción del 30% (RG ARCA 5617/2024). Para evitarla, pagala con dólares propios antes del vencimiento. Si tenés débito automático, revisá que la parte en USD salga de tu caja de ahorro en dólares.";
-
-export const CATEGORIES = [
-  ["luz", "Luz"],
-  ["gas", "Gas"],
-  ["agua", "Agua"],
-  ["municipal", "Municipal"],
-  ["arba", "ARBA"],
-  ["internet", "Internet"],
-  ["linea_celular", "Línea de celular"],
-  ["seguro_auto", "Seguro auto"],
-];
 
 const LEGACY_CATEGORIES = {
   celular: "Línea de celular",
@@ -314,7 +305,7 @@ function renderSubscriptions(subscriptions) {
   add(hero, "p", "tile-kicker", "Suma a los fijos");
   figures(hero, totals, "both");
   if (subscriptions.some((subscription) => paidOnCard(subscription))) {
-    add(root, "p", "service-note", "Las marcadas “En tarjeta” siguen acá por el próximo cobro y no se suman: ese monto ya entra con la tarjeta.");
+    add(root, "p", "service-note", "Las marcadas “En tarjeta” se cuentan dentro de esa tarjeta. Los cargos futuros se estiman hasta confirmar el resumen.");
   }
   if (totals.USD > 0) add(root, "p", "usd-warning", USD_WARNING);
   add(root, "h2", "block-title", "Próximos 6 meses");
@@ -359,7 +350,7 @@ function renderServices(services, bills) {
     const result = serviceAmountInMonth(own, month);
     if (result.amount != null) {
       any = true;
-      total += result.amount;
+      if (!service.card_id) total += result.amount;
     }
     const option = add(select, "option", "", service.name);
     option.value = service.id;
@@ -372,8 +363,9 @@ function renderServices(services, bills) {
     return;
   }
   const hero = add(root, "article", "tile tile-servicios tile-hero tile-stack");
-  add(hero, "p", "tile-kicker", "Este mes");
+  add(hero, "p", "tile-kicker", "Fuera de tarjeta este mes");
   figures(hero, any ? total : 0, "ars");
+  if (services.some((row) => row.card_id)) add(root, "p", "service-note", "Los servicios en tarjeta se consultan acá, pero se suman dentro de la tarjeta. Los próximos cargos son estimados.");
   if (!any) add(root, "p", "empty", "Sin facturas para proyectar este mes.");
 
   for (const service of services) {
@@ -381,7 +373,7 @@ function renderServices(services, bills) {
     const estimate = serviceEstimate(own);
     const result = serviceAmountInMonth(own, month);
     const block = add(list, "li", "service-block");
-    add(block, "p", "row-title", `${service.name} · ${categoryLabel(service.category)}`);
+    add(block, "p", "row-title", `${service.name} · ${categoryLabel(service.category)}${service.card_id ? " · En tarjeta" : ""}`);
     if (estimate.text) add(block, "p", "service-note", estimate.text);
     const periods = own.map((bill) => bill.period);
     if (periods.length !== new Set(periods).size) {
@@ -497,6 +489,7 @@ function startSubEdit(subscription) {
   field(form, "frequency").value = subscription.frequency;
   field(form, "next_charge_on").value = String(subscription.next_charge_on).slice(0, 10);
   field(form, "on_card").checked = paidOnCard(subscription);
+  field(form, "card_id").value = subscription.card_id || "";
   document.getElementById("sub-submit").textContent = "Guardar cambios";
 }
 
@@ -516,6 +509,7 @@ function startServiceEdit(service) {
   const form = document.getElementById("service-form");
   editingServiceId = service.id;
   field(form, "name").value = service.name;
+  field(form, "card_id").value = service.card_id || "";
   const select = field(form, "category");
   select.querySelectorAll("[data-legacy]").forEach((node) => node.remove());
   const stored = service.category === "celular" ? "linea_celular" : service.category;
@@ -717,6 +711,11 @@ function wireForms() {
     const frequency = field(subForm, "frequency").value;
     const nextCharge = field(subForm, "next_charge_on").value;
     const onCard = Boolean(field(subForm, "on_card").checked);
+    const cardId = onCard ? field(subForm, "card_id").value : null;
+    if (onCard && !cardId) {
+      error.textContent = "Elegí la tarjeta que paga esta suscripción.";
+      return;
+    }
     if (!name) {
       error.textContent = "Poné un nombre.";
       return;
@@ -735,6 +734,7 @@ function wireForms() {
       ? (await listRows("subscriptions")).find((row) => row.id === editingSubId)
       : null;
     await queueChange("subscriptions", editingSubId ? "update" : "insert", stamp({
+      ...existing,
       id: editingSubId || crypto.randomUUID(),
       user_id: userId,
       name,
@@ -743,6 +743,7 @@ function wireForms() {
       frequency,
       next_charge_on: nextCharge,
       on_card: onCard,
+      card_id: cardId || null,
       created_at: existing?.created_at,
     }));
     resetSubForm();
@@ -767,10 +768,12 @@ function wireForms() {
       return;
     }
     await queueChange("services", editingServiceId ? "update" : "insert", stamp({
+      ...existing,
       id: editingServiceId || crypto.randomUUID(),
       user_id: userId,
       name,
       category,
+      card_id: field(serviceForm, "card_id").value || null,
       created_at: existing?.created_at,
     }));
     resetServiceForm();
@@ -815,12 +818,22 @@ function wireForms() {
 
 export async function renderPlanes() {
   wireForms();
-  const [loans, subscriptions, services, bills] = await Promise.all([
+  const [loans, subscriptions, services, bills, cards] = await Promise.all([
     listRows("loans"),
     listRows("subscriptions"),
     listRows("services"),
     listRows("service_bills"),
+    listRows("cards"),
   ]);
+  for (const id of ["service-card", "sub-card"]) {
+    const select = document.getElementById(id);
+    if (!select) continue;
+    const value = select.value;
+    select.replaceChildren();
+    add(select, "option", "", id === "service-card" ? "Fuera de tarjeta" : "Elegí una tarjeta").value = "";
+    for (const card of cards) add(select, "option", "", card.name).value = card.id;
+    select.value = cards.some((row) => row.id === value) ? value : "";
+  }
   renderLoans(loans);
   renderSubscriptions(subscriptions);
   renderServices(services, bills);

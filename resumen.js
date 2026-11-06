@@ -1,15 +1,26 @@
-import { matchCard, normalizeOcrText, parseCardStatement, planStatementImport } from "./statement-parser.js";
+import { matchCard, normalizeOcrText, parseCardStatement } from "./statement-parser.js";
 import { amountNode } from "./money-view.js";
 import { redactLongNumbers } from "./privacy.js";
-import { listRows, queueChange } from "./db.js";
+import { listRows, queueChanges } from "./db.js";
 import { textFromPdf } from "./pdf-text.js";
 import { focusCard } from "./tarjeta.js";
 import { parseIsoDate } from "./card-math.js";
+import { planClassifiedImport, suggestClassification } from "./statement-classification.js";
+import { CATEGORIES } from "./service-categories.js";
 
 let userId = null;
 let review = null;
 let knownCards = [];
-let knownItems = [];
+let classificationData = { cardItems: [], subscriptions: [], services: [], serviceBills: [] };
+let confirming = false;
+let suggestedCardId = null;
+
+async function loadClassificationData() {
+  const [cardItems, subscriptions, services, serviceBills] = await Promise.all([
+    listRows("card_items"), listRows("subscriptions"), listRows("services"), listRows("service_bills"),
+  ]);
+  classificationData = { cardItems, subscriptions, services, serviceBills };
+}
 
 export function setStatementUser(id) {
   userId = id;
@@ -74,7 +85,7 @@ function statusLabel(status) {
 function paintSummary() {
   const name = document.getElementById("pdf-card-name").value.trim();
   const cardId = matchCard(knownCards, name)?.id || "nueva";
-  const plan = planStatementImport(readRows(), cardId, knownItems);
+  const plan = planClassifiedImport(readRows(), cardId, classificationData);
   const summary = document.getElementById("pdf-summary");
   if (!plan.ok) {
     document.getElementById("pdf-error").textContent = plan.error;
@@ -89,8 +100,6 @@ function paintSummary() {
     badge.textContent = statusLabel(row.status);
     badge.className = `pdf-status is-${row.status}`;
     node.querySelector(".pdf-reason").textContent = row.reason;
-    const box = node.querySelector("[data-field=selected]");
-    if (row.status === "loaded" || row.status === "ignored") box.checked = false;
     const other = node.querySelector("[data-field=force_new]");
     if (other) other.closest("label").hidden = !(row.hadMatch || other.checked);
   });
@@ -117,7 +126,80 @@ function readRows() {
       installment_count: total === "" ? null : Number(total),
       statement_closes_on: document.getElementById("pdf-closing-on").value,
       statement_due_on: document.getElementById("pdf-due-on").value,
+      classification: {
+        kind: node.querySelector('[data-field="kind"]').value,
+        target_id: node.querySelector('[data-field="target"]').value,
+        name: node.querySelector('[data-field="entity-name"]').value,
+        frequency: node.querySelector('[data-field="frequency"]').value,
+        category: node.querySelector('[data-field="category"]').value,
+        period: node.querySelector('[data-field="period"]').value,
+      },
     };
+  });
+}
+
+function labeledSelect(parent, title, field, options) {
+  const label = add(parent, "label");
+  add(label, "span", "", title);
+  const select = add(label, "select");
+  select.dataset.field = field;
+  for (const [value, text] of options) {
+    const option = add(select, "option", "", text);
+    option.value = value;
+  }
+  return select;
+}
+
+function classificationControls(line, charge) {
+  const root = add(line, "div", "pdf-classification");
+  root.addEventListener("input", () => { root.dataset.edited = "1"; });
+  const cardId = matchCard(knownCards, document.getElementById("pdf-card-name").value)?.id;
+  const suggestion = suggestClassification(charge, cardId, classificationData);
+  const kind = labeledSelect(root, "Tipo de gasto", "kind", [["normal", "Compra normal"], ["subscription", "Suscripción"], ["service", "Servicio (ARS)"]]);
+  const target = labeledSelect(root, "Vincular con", "target", []);
+  const name = labeledInput(root, "Nombre del nuevo registro", "text");
+  name.dataset.field = "entity-name";
+  name.maxLength = 80;
+  name.value = suggestion.name || charge.description;
+  const frequency = labeledSelect(root, "Frecuencia", "frequency", [["mensual", "Mensual"], ["anual", "Anual"]]);
+  const category = labeledSelect(root, "Categoría del servicio", "category", [["", "Elegí una categoría"], ...CATEGORIES]);
+  const period = labeledInput(root, "Período facturado", "month");
+  period.dataset.field = "period";
+  period.value = suggestion.period || charge.spent_on.slice(0, 7);
+  const note = add(root, "p", "hint");
+  function visibility() {
+    const normal = kind.value === "normal";
+    const service = kind.value === "service";
+    target.closest("label").hidden = normal;
+    name.closest("label").hidden = normal || target.value !== "new";
+    frequency.closest("label").hidden = kind.value !== "subscription";
+    category.closest("label").hidden = !service || target.value !== "new";
+    period.closest("label").hidden = !service;
+    note.textContent = normal ? "" : "Se cuenta dentro de la tarjeta. Los próximos cargos se muestran como estimados hasta importar el consumo real.";
+  }
+  function targets(selected = "new") {
+    target.replaceChildren();
+    const records = kind.value === "subscription"
+      ? classificationData.subscriptions.filter((row) => row.currency === line.querySelector('[data-field="currency"]').value)
+      : classificationData.services;
+    for (const [value, text] of [["new", "Crear nuevo"], ...records.map((row) => [row.id, row.name])]) {
+      const option = add(target, "option", "", text);
+      option.value = value;
+    }
+    target.value = records.some((row) => row.id === selected) ? selected : "new";
+    visibility();
+  }
+  kind.value = suggestion.kind;
+  frequency.value = suggestion.frequency || "mensual";
+  category.value = suggestion.category || "";
+  targets(suggestion.target_id);
+  if (suggestion.suggested && suggestion.kind !== "normal") note.prepend("Sugerido según una clasificación anterior. ");
+  kind.addEventListener("change", () => { targets(); paintSummary(); });
+  target.addEventListener("change", () => {
+    const entity = classificationData.subscriptions.find((row) => row.id === target.value);
+    if (entity) frequency.value = entity.frequency;
+    visibility();
+    paintSummary();
   });
 }
 
@@ -164,6 +246,7 @@ function paintLines(charges) {
     count.min = "1";
     count.placeholder = "Vacío si es un pago";
     count.value = charge.installment_count ?? "";
+    classificationControls(line, charge);
     add(line, "p", "pdf-status is-new", "Nuevo");
     add(line, "p", "pdf-reason", "");
     const other = add(line, "label", "check");
@@ -250,9 +333,10 @@ async function showReview(parsed, emptyMessage) {
   const balances = document.getElementById("pdf-balances");
   balances.replaceChildren(`Saldo del resumen ${money(review.balanceARS, "ARS")} y `, amountNode(review.balanceUSD, "USD"), ". No se guarda.");
   knownCards = await listRows("cards");
-  knownItems = await listRows("card_items");
-  paintLines(review.charges);
+  await loadClassificationData();
   await paintCardChoice();
+  paintLines(review.charges);
+  suggestedCardId = matchCard(knownCards, document.getElementById("pdf-card-name").value)?.id || null;
   paintSummary();
   panel.scrollIntoView({ block: "start" });
 }
@@ -304,7 +388,7 @@ async function openImage(file) {
   }
 }
 
-async function confirmReview() {
+async function saveReview() {
   const error = document.getElementById("pdf-error");
   const notice = document.getElementById("pdf-notice");
   error.textContent = "";
@@ -320,7 +404,7 @@ async function confirmReview() {
     return;
   }
   knownCards = await listRows("cards");
-  knownItems = await listRows("card_items");
+  await loadClassificationData();
   const matched = matchCard(knownCards, name);
   const closingOn = document.getElementById("pdf-closing-on").value;
   const dueOn = document.getElementById("pdf-due-on").value;
@@ -338,51 +422,33 @@ async function confirmReview() {
   };
   const updateCard = !matched?.last_closing_on || closingOn >= matched.last_closing_on;
   const cardId = matched?.id || crypto.randomUUID();
-  const plan = planStatementImport(readRows(), cardId, await listRows("card_items"));
+  const plan = planClassifiedImport(readRows(), cardId, classificationData);
   if (!plan.ok) {
     error.textContent = plan.error;
     return;
   }
+  const operations = [];
   if (!matched) {
-    await queueChange("cards", "insert", stamp({
+    operations.push({ table: "cards", op: "insert", row: stamp({
       id: cardId,
       user_id: userId,
       name,
       due_day: due,
       closing_day: closing,
       ...period,
-    }));
+    }) });
   } else {
-    await queueChange("cards", "update", stamp({
+    operations.push({ table: "cards", op: "update", row: stamp({
       ...matched,
       user_id: userId,
       name,
       ...(updateCard ? { due_day: due, closing_day: closing, ...period } : {}),
-    }));
+    }) });
   }
-  for (const row of plan.inserts) {
-    await queueChange("card_items", "insert", stamp({
-      id: crypto.randomUUID(),
-      user_id: userId,
-      ...row,
-    }));
-  }
-  for (const row of plan.updates) {
-    const existing = knownItems.find((item) => item.id === row.existingId);
-    if (!existing) continue;
-    await queueChange("card_items", "update", stamp({
-      ...existing,
-      user_id: userId,
-      description: row.description,
-      amount: row.amount,
-      currency: row.currency,
-      spent_on: row.spent_on,
-      installment_number: row.installment_number,
-      installment_count: row.installment_count,
-      statement_closes_on: row.statement_closes_on,
-      statement_due_on: row.statement_due_on,
-    }));
-  }
+  for (const operation of plan.ops) operations.push({
+    ...operation, row: stamp({ ...operation.row, user_id: userId }),
+  });
+  await queueChanges(operations);
   focusCard(cardId);
   const parts = [];
   if (plan.inserts.length) parts.push(`Guardé ${plan.inserts.length} consumos`);
@@ -390,12 +456,29 @@ async function confirmReview() {
   const cuotaUpdates = plan.updates.length - (plan.links || 0);
   if (cuotaUpdates > 0) parts.push(`actualicé ${cuotaUpdates} cuotas`);
   if (plan.loaded) parts.push(`${plan.loaded} ya estaban`);
-  notice.textContent = parts.length ? `${parts.join(", ")}.` : "No había consumos para guardar.";
+  const classified = plan.ops.filter((op) => op.table !== "card_items").length;
+  if (classified) parts.push("actualicé servicios y suscripciones vinculados");
+  notice.textContent = parts.length ? `${parts.join(", ")}.` : "Revisión confirmada. Los consumos ya estaban cargados.";
   review = null;
   clear(document.getElementById("pdf-lines"));
   document.getElementById("pdf-dates").textContent = "";
   document.getElementById("pdf-balances").textContent = "";
   document.getElementById("pdf-summary").textContent = notice.textContent;
+}
+
+async function confirmReview() {
+  if (confirming) return;
+  confirming = true;
+  const button = document.getElementById("pdf-confirm");
+  button.disabled = true;
+  try {
+    await saveReview();
+  } catch (error) {
+    document.getElementById("pdf-error").textContent = "No pude guardar la revisión. Tus cambios siguen acá para reintentar.";
+  } finally {
+    confirming = false;
+    button.disabled = false;
+  }
 }
 
 function isPdf(file) {
@@ -436,7 +519,20 @@ function wire() {
     input.value = "";
     takeStatement(file);
   });
-  document.getElementById("pdf-card-name").addEventListener("input", paintSummary);
+  document.getElementById("pdf-card-name").addEventListener("input", () => {
+    const cardId = matchCard(knownCards, document.getElementById("pdf-card-name").value)?.id || null;
+    if (cardId !== suggestedCardId) {
+      const rows = readRows();
+      [...document.querySelectorAll(".pdf-line")].forEach((line, index) => {
+        const controls = line.querySelector(".pdf-classification");
+        if (controls?.dataset.edited === "1") return;
+        controls?.remove();
+        classificationControls(line, rows[index]);
+      });
+      suggestedCardId = cardId;
+    }
+    paintSummary();
+  });
   for (const id of ["pdf-closing-on", "pdf-due-on"]) {
     document.getElementById(id).addEventListener("input", paintSummary);
   }

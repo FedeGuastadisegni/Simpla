@@ -26,5 +26,8 @@ jobs:
         with:
           node-version: 22
 
-      - name: Run test suite
+      - name: Install test dependencies
+        run: npm ci
+
+      - name: Run tests
         run: npm test

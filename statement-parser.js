@@ -505,7 +505,7 @@ export function planStatementImport(rows, cardId, existing) {
     const selected = row.selected !== false;
     const match = matchExistingCharge(cleaned.row, pool);
     const hadMatch = Boolean(match);
-    if (row.force_new && match && !String(match.item.id).startsWith("batch-")) {
+    if (selected && row.force_new && match) {
       const id = `batch-${planned.length}`;
       pool.push({ ...cleaned.row, id, taken: true });
       planned.push({ ...cleaned.row, status: "new", reason: "Lo marcaste como otro consumo.", selected: true, existingId: null, hadMatch: true });
