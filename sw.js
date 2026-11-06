@@ -1,10 +1,11 @@
 /* Shell de Simpla. Subí CACHE cuando cambien los archivos precacheados. */
-const CACHE = "simpla-shell-v26";
+const CACHE = "simpla-shell-v29";
 
 const FILES = [
   "index.html",
   "styles.css",
   "pulso.css",
+  "balance.css",
   "pulso.js",
   "pulso-model.js",
   "app.js",

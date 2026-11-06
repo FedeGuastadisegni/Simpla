@@ -6,6 +6,8 @@ La aplicación ya cuenta con persistencia y sincronización: permite registrar t
 
 ## Funcionalidades
 
+La interfaz sigue la dirección **Balance**: próximo pago en una franja horizontal, desglose desplegable y comparación del siguiente período. El sistema visual y la adaptación móvil se describen en [DESIGN.md](DESIGN.md).
+
 - **Tarjetas:** tarjetas, consumos, cuotas y fechas de cierre.
 - **Préstamos:** seguimiento de cuotas y proyecciones de amortización.
 - **Servicios y suscripciones:** registro de importes, períodos y próximos cargos.
